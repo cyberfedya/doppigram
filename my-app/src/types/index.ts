@@ -3,7 +3,11 @@ export interface User {
   username: string;
   email: string;
   avatar?: string;
+  avatarType?: 'emoji' | 'image';
   isAdmin?: boolean;
+  isOnboarded?: boolean;
+  isOnline?: boolean;
+  lastSeen?: number;
 }
 
 export interface Message {
@@ -11,6 +15,7 @@ export interface Message {
   chatId: string;
   senderId: string;
   text: string;
+  image?: string;
   timestamp: Date;
   isRead: boolean;
 }
@@ -24,6 +29,7 @@ export interface Chat {
   unreadCount: number;
   participants: string[];
   isGroup: boolean;
+  isOnline?: boolean;
 }
 
 export interface AuthState {

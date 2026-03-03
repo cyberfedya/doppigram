@@ -4,11 +4,13 @@ import { LoginPage } from './pages/LoginPage';
 import { ChatListPage } from './pages/ChatListPage';
 import { ChatPage } from './pages/ChatPage';
 import { AdminPage } from './pages/AdminPage';
+import { SettingsPage } from './pages/SettingsPage';
+import { ProfileSetupPage } from './pages/ProfileSetupPage';
 import './styles/global.css';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { auth } = useApp();
-  
+  const { auth, isOnboarding } = useApp();
+
   if (auth.isLoading) {
     return (
       <div className="loading-screen">
@@ -16,21 +18,29 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
       </div>
     );
   }
-  
+
+  if (isOnboarding || !auth.user?.isOnboarded) {
+    return <Navigate to="/profile-setup" replace />;
+  }
+
   if (!auth.isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
-  
+
   return <>{children}</>;
 }
 
 function PublicRoute({ children }: { children: React.ReactNode }) {
-  const { auth } = useApp();
-  
+  const { auth, isOnboarding } = useApp();
+
+  if (isOnboarding) {
+    return <Navigate to="/profile-setup" replace />;
+  }
+
   if (auth.isAuthenticated) {
     return <Navigate to="/chats" replace />;
   }
-  
+
   return <>{children}</>;
 }
 
@@ -67,6 +77,20 @@ function AppRoutes() {
           <ProtectedRoute>
             <AdminPage />
           </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/settings"
+        element={
+          <ProtectedRoute>
+            <SettingsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/profile-setup"
+        element={
+          <ProfileSetupPage />
         }
       />
       <Route path="/" element={<Navigate to="/chats" replace />} />

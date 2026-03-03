@@ -3,7 +3,6 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import type { Message as MessageType } from '../types';
 import { ArrowLeft, Send, Smile, Paperclip, Check, CheckCheck } from 'lucide-react';
-import './ChatPage.css';
 
 export function ChatPage() {
   const { id } = useParams<{ id: string }>();
@@ -127,7 +126,7 @@ export function ChatPage() {
               const showDate =
                 index === 0 ||
                 new Date(message.timestamp).toDateString() !==
-                  new Date(chatMessages[index - 1].timestamp).toDateString();
+                new Date(chatMessages[index - 1].timestamp).toDateString();
 
               return (
                 <div key={message.id}>
