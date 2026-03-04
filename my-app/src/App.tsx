@@ -1,26 +1,24 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AppProvider, useApp } from './context/AppContext';
-import { LoginPage } from './pages/LoginPage';
+import Login from './pages/Login';
+import AdminPanel from './pages/AdminPanel';
+import InitAdmin from './pages/InitAdmin';
 import { ChatListPage } from './pages/ChatListPage';
 import { ChatPage } from './pages/ChatPage';
-import { AdminPage } from './pages/AdminPage';
-import { SettingsPage } from './pages/SettingsPage';
-import { ProfileSetupPage } from './pages/ProfileSetupPage';
 import './styles/global.css';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { auth, isOnboarding } = useApp();
+  const { auth, isLoading } = useApp();
 
-  if (auth.isLoading) {
+  if (isLoading) {
     return (
-      <div className="loading-screen">
-        <div className="spinner"></div>
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600">Yuklanmoqda...</p>
+        </div>
       </div>
     );
-  }
-
-  if (isOnboarding || !auth.user?.isOnboarded) {
-    return <Navigate to="/profile-setup" replace />;
   }
 
   if (!auth.isAuthenticated) {
@@ -30,15 +28,22 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-function PublicRoute({ children }: { children: React.ReactNode }) {
-  const { auth, isOnboarding } = useApp();
+function AdminRoute({ children }: { children: React.ReactNode }) {
+  const { auth, isLoading } = useApp();
 
-  if (isOnboarding) {
-    return <Navigate to="/profile-setup" replace />;
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600">Yuklanmoqda...</p>
+        </div>
+      </div>
+    );
   }
 
-  if (auth.isAuthenticated) {
-    return <Navigate to="/chats" replace />;
+  if (!auth.isAuthenticated || !auth.user?.isAdmin) {
+    return <Navigate to="/login" replace />;
   }
 
   return <>{children}</>;
@@ -47,12 +52,15 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
 function AppRoutes() {
   return (
     <Routes>
+      <Route path="/login" element={<Login />} />
+      <Route path="/init-admin" element={<InitAdmin />} />
+      {/* Секретный маршрут для админки */}
       <Route
-        path="/login"
+        path="/vpp"
         element={
-          <PublicRoute>
-            <LoginPage />
-          </PublicRoute>
+          <AdminRoute>
+            <AdminPanel />
+          </AdminRoute>
         }
       />
       <Route
@@ -69,28 +77,6 @@ function AppRoutes() {
           <ProtectedRoute>
             <ChatPage />
           </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/admin"
-        element={
-          <ProtectedRoute>
-            <AdminPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/settings"
-        element={
-          <ProtectedRoute>
-            <SettingsPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/profile-setup"
-        element={
-          <ProfileSetupPage />
         }
       />
       <Route path="/" element={<Navigate to="/chats" replace />} />

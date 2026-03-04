@@ -1,5 +1,5 @@
-import { defineConfig } from "convex/config";
+import { defineApp } from "convex/server";
 
-export default defineConfig({
-  components: [],
-});
+const app = defineApp();
+
+export default app;

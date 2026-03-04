@@ -4,9 +4,10 @@ import { v } from "convex/values";
 export default defineSchema({
   // Пользователи
   users: defineTable({
-    uid: v.string(), // Firebase UID
+    uid: v.string(), // Уникальный ID пользователя
     username: v.string(),
     email: v.string(),
+    password: v.string(), // Хэш пароля
     avatar: v.optional(v.string()),
     avatarType: v.optional(v.union(v.literal("emoji"), v.literal("image"))),
     isAdmin: v.boolean(),

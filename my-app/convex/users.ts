@@ -1,9 +1,16 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 
-// ════════════════════════════════════════════════════════════
-// USERS
-// ════════════════════════════════════════════════════════════
+// Простая хэш-функция для демо (в продакшене используйте bcrypt)
+function hashPassword(password: string): string {
+  let hash = 0;
+  for (let i = 0; i < password.length; i++) {
+    const char = password.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+  return 'hash_' + Math.abs(hash).toString(36);
+}
 
 export const getUserByUid = query({
   args: { uid: v.string() },
@@ -46,8 +53,10 @@ export const createUser = mutation({
     uid: v.string(),
     username: v.string(),
     email: v.string(),
+    password: v.string(),
     avatar: v.optional(v.string()),
     avatarType: v.optional(v.union(v.literal("emoji"), v.literal("image"))),
+    isAdmin: v.boolean(),
   },
   handler: async (ctx, args) => {
     // Проверяем, существует ли уже пользователь
@@ -64,15 +73,52 @@ export const createUser = mutation({
       uid: args.uid,
       username: args.username,
       email: args.email,
+      password: hashPassword(args.password),
       avatar: args.avatar,
       avatarType: args.avatarType,
-      isAdmin: false,
+      isAdmin: args.isAdmin,
       isOnline: true,
       lastSeen: Date.now(),
       createdAt: Date.now(),
     });
 
     return userId;
+  },
+});
+
+export const loginUser = query({
+  args: {
+    username: v.string(),
+    password: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_username", (q) => q.eq("username", args.username))
+      .unique();
+
+    if (!user) {
+      return null;
+    }
+
+    const hashedPassword = hashPassword(args.password);
+    if (user.password !== hashedPassword) {
+      return null;
+    }
+
+    // Возвращаем пользователя без пароля
+    return {
+      _id: user._id,
+      uid: user.uid,
+      username: user.username,
+      email: user.email,
+      avatar: user.avatar,
+      avatarType: user.avatarType,
+      isAdmin: user.isAdmin,
+      isOnline: user.isOnline,
+      lastSeen: user.lastSeen,
+      createdAt: user.createdAt,
+    };
   },
 });
 
@@ -83,13 +129,38 @@ export const updateUser = mutation({
     avatar: v.optional(v.string()),
     avatarType: v.optional(v.union(v.literal("emoji"), v.literal("image"))),
     isOnline: v.optional(v.boolean()),
+    password: v.optional(v.string()),
+    isAdmin: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const { userId, ...updates } = args;
     await ctx.db.patch(userId, {
       ...updates,
-      updatedAt: Date.now(),
+      ...(updates.password ? { password: hashPassword(updates.password) } : {}),
     });
+  },
+});
+
+export const deleteUser = mutation({
+  args: {
+    userId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.delete(args.userId);
+  },
+});
+
+export const toggleUserAdmin = mutation({
+  args: {
+    userId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    const user = await ctx.db.get(args.userId);
+    if (user) {
+      await ctx.db.patch(args.userId, {
+        isAdmin: !user.isAdmin,
+      });
+    }
   },
 });
 

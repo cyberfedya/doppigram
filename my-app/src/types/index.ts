@@ -4,8 +4,8 @@ export interface User {
   email: string;
   avatar?: string;
   avatarType?: 'emoji' | 'image';
-  isAdmin?: boolean;
-  isOnboarded?: boolean;
+  isAdmin: boolean;
+  isOnboarded: boolean;
   isOnline?: boolean;
   lastSeen?: number;
 }
