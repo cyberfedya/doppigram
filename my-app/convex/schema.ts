@@ -43,12 +43,29 @@ export default defineSchema({
     chatId: v.id("chats"),
     senderId: v.id("users"),
     text: v.string(),
-    image: v.optional(v.string()), // URL изображения
+    messageType: v.optional(v.union(
+      v.literal("text"),
+      v.literal("image"),
+      v.literal("video"),
+      v.literal("sticker"),
+      v.literal("video_message"),
+    )),
+    fileUrl: v.optional(v.string()),
     isRead: v.boolean(),
     createdAt: v.number(),
   })
     .index("by_chatId", ["chatId"])
     .index("by_chatId_createdAt", ["chatId", "createdAt"]),
+
+  // Индикаторы печатания
+  typingIndicators: defineTable({
+    chatId: v.id("chats"),
+    userId: v.id("users"),
+    username: v.string(),
+    updatedAt: v.number(),
+  })
+    .index("by_chatId", ["chatId"])
+    .index("by_chatId_userId", ["chatId", "userId"]),
 
   // Запросы в друзья
   friendRequests: defineTable({

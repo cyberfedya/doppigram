@@ -86,7 +86,7 @@ export const createUser = mutation({
   },
 });
 
-export const loginUser = query({
+export const loginUser = mutation({
   args: {
     username: v.string(),
     password: v.string(),
@@ -106,7 +106,9 @@ export const loginUser = query({
       return null;
     }
 
-    // Возвращаем пользователя без пароля
+    // Устанавливаем онлайн-статус при логине
+    await ctx.db.patch(user._id, { isOnline: true, lastSeen: Date.now() });
+
     return {
       _id: user._id,
       uid: user.uid,
@@ -115,8 +117,8 @@ export const loginUser = query({
       avatar: user.avatar,
       avatarType: user.avatarType,
       isAdmin: user.isAdmin,
-      isOnline: user.isOnline,
-      lastSeen: user.lastSeen,
+      isOnline: true,
+      lastSeen: Date.now(),
       createdAt: user.createdAt,
     };
   },
@@ -203,6 +205,31 @@ export const getChatById = query({
   },
 });
 
+export const getChatParticipantsStatus = query({
+  args: { chatId: v.id("chats"), currentUserId: v.id("users") },
+  handler: async (ctx, args) => {
+    const participants = await ctx.db
+      .query("chatParticipants")
+      .withIndex("by_chatId", (q) => q.eq("chatId", args.chatId))
+      .collect();
+
+    const others = participants.filter((p) => p.userId !== args.currentUserId);
+    const users = await Promise.all(
+      others.map(async (p) => {
+        const user = await ctx.db.get(p.userId);
+        if (!user) return null;
+        return {
+          _id: user._id,
+          username: user.username,
+          isOnline: user.isOnline,
+          lastSeen: user.lastSeen,
+        };
+      })
+    );
+    return users.filter(Boolean);
+  },
+});
+
 export const createChat = mutation({
   args: {
     name: v.string(),
@@ -219,8 +246,9 @@ export const createChat = mutation({
       createdAt: Date.now(),
     });
 
-    // Добавляем всех участников
-    for (const userId of participantIds) {
+    // Добавляем создателя + всех участников (без дубликатов)
+    const allParticipants = [...new Set([args.createdBy, ...participantIds])];
+    for (const userId of allParticipants) {
       await ctx.db.insert("chatParticipants", {
         chatId,
         userId,
@@ -270,11 +298,6 @@ export const getChatParticipants = query({
     return users.filter(Boolean);
   },
 });
-
-// ════════════════════════════════════════════════════════════
-// MESSAGES
-// ════════════════════════════════════════════════════════════
-
 export const getMessagesForChat = query({
   args: { chatId: v.id("chats"), limit: v.optional(v.number()) },
   handler: async (ctx, args) => {
@@ -295,11 +318,27 @@ export const sendMessage = mutation({
     chatId: v.id("chats"),
     senderId: v.id("users"),
     text: v.string(),
-    image: v.optional(v.string()),
+    messageType: v.optional(v.union(
+      v.literal("text"),
+      v.literal("image"),
+      v.literal("video"),
+      v.literal("sticker"),
+      v.literal("video_message"),
+    )),
+    storageId: v.optional(v.id("_storage")),
+    fileUrl: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    let resolvedFileUrl = args.fileUrl;
+    if (args.storageId && !resolvedFileUrl) {
+      resolvedFileUrl = (await ctx.storage.getUrl(args.storageId)) ?? undefined;
+    }
     const messageId = await ctx.db.insert("messages", {
-      ...args,
+      chatId: args.chatId,
+      senderId: args.senderId,
+      text: args.text,
+      messageType: args.messageType ?? "text",
+      fileUrl: resolvedFileUrl,
       isRead: false,
       createdAt: Date.now(),
     });
@@ -394,5 +433,146 @@ export const acceptFriendRequest = mutation({
   args: { requestId: v.id("friendRequests") },
   handler: async (ctx, args) => {
     await ctx.db.patch(args.requestId, { status: "accepted" });
+  },
+});
+
+// ════════════════════════════════════════════════════════════
+// CHATS WITH LAST MESSAGE (for chat list)
+// ════════════════════════════════════════════════════════════
+
+export const getChatsWithLastMessage = query({
+  args: { userId: v.id("users") },
+  handler: async (ctx, args) => {
+    const participants = await ctx.db
+      .query("chatParticipants")
+      .withIndex("by_userId", (q) => q.eq("userId", args.userId))
+      .collect();
+
+    const chatIds = participants.map((p) => p.chatId);
+
+    const chatsWithData = await Promise.all(
+      chatIds.map(async (chatId) => {
+        const chat = await ctx.db.get(chatId);
+        if (!chat) return null;
+
+        const lastMessage = await ctx.db
+          .query("messages")
+          .withIndex("by_chatId_createdAt", (q) => q.eq("chatId", chatId))
+          .order("desc")
+          .first();
+
+        const unreadMessages = await ctx.db
+          .query("messages")
+          .withIndex("by_chatId", (q) => q.eq("chatId", chatId))
+          .filter((q) =>
+            q.and(
+              q.neq(q.field("senderId"), args.userId),
+              q.eq(q.field("isRead"), false)
+            )
+          )
+          .collect();
+
+        return {
+          _id: chat._id,
+          name: chat.name,
+          avatar: chat.avatar,
+          isGroup: chat.isGroup,
+          createdAt: chat.createdAt,
+          lastMessage: lastMessage?.text ?? null,
+          lastMessageType: lastMessage?.messageType ?? "text",
+          lastMessageTime: lastMessage?.createdAt ?? null,
+          unreadCount: unreadMessages.length,
+        };
+      })
+    );
+
+    return chatsWithData
+      .filter(Boolean)
+      .sort((a, b) => (b!.lastMessageTime ?? 0) - (a!.lastMessageTime ?? 0));
+  },
+});
+
+// ════════════════════════════════════════════════════════════
+// TYPING INDICATORS
+// ════════════════════════════════════════════════════════════
+
+export const setTyping = mutation({
+  args: {
+    chatId: v.id("chats"),
+    userId: v.id("users"),
+    username: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("typingIndicators")
+      .withIndex("by_chatId_userId", (q) =>
+        q.eq("chatId", args.chatId).eq("userId", args.userId)
+      )
+      .unique();
+
+    if (existing) {
+      await ctx.db.patch(existing._id, { updatedAt: Date.now() });
+    } else {
+      await ctx.db.insert("typingIndicators", {
+        chatId: args.chatId,
+        userId: args.userId,
+        username: args.username,
+        updatedAt: Date.now(),
+      });
+    }
+  },
+});
+
+export const clearTyping = mutation({
+  args: {
+    chatId: v.id("chats"),
+    userId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("typingIndicators")
+      .withIndex("by_chatId_userId", (q) =>
+        q.eq("chatId", args.chatId).eq("userId", args.userId)
+      )
+      .unique();
+
+    if (existing) {
+      await ctx.db.delete(existing._id);
+    }
+  },
+});
+
+export const getTypingUsers = query({
+  args: {
+    chatId: v.id("chats"),
+    currentUserId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    const fiveSecondsAgo = Date.now() - 5000;
+    const indicators = await ctx.db
+      .query("typingIndicators")
+      .withIndex("by_chatId", (q) => q.eq("chatId", args.chatId))
+      .filter((q) => q.neq(q.field("userId"), args.currentUserId))
+      .filter((q) => q.gt(q.field("updatedAt"), fiveSecondsAgo))
+      .collect();
+
+    return indicators.map((i) => i.username);
+  },
+});
+
+// ════════════════════════════════════════════════════════════
+// USER STATUS
+// ════════════════════════════════════════════════════════════
+
+export const setUserOnline = mutation({
+  args: {
+    userId: v.id("users"),
+    isOnline: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.userId, {
+      isOnline: args.isOnline,
+      lastSeen: Date.now(),
+    });
   },
 });

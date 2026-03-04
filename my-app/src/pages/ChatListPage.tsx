@@ -1,12 +1,24 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQuery, useMutation } from 'convex/react';
 import { useApp } from '../context/AppContext';
-import type { Chat as ChatType, Message as MessageType } from '../types';
+import { api } from '../../convex/_generated/api';
+import type { Id } from '../../convex/_generated/dataModel';
+import type { MessageType } from '../types';
+import { playMessageSound, playSendSound } from '../utils/sounds';
 import {
-  Search, MessageCircle, Settings, LogOut, Users, User,
-  UsersRound, Moon, Sun,
-  Send, Paperclip, Check, CheckCheck, ArrowLeft, X, Plus,
+  Search, MessageCircle, LogOut, Users, User,
+  UsersRound, Send, Check, CheckCheck, X, Plus, Shield,
 } from 'lucide-react';
+
+/* ── Modal Overlay ────────────────────────────────────────── */
+function ModalOverlay({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 animate-fadeIn" onClick={onClose}>
+      <div className="animate-slideUp" onClick={e => e.stopPropagation()}>{children}</div>
+    </div>
+  );
+}
 
 /* ── Profile Modal ───────────────────────────────────────── */
 function ProfileModal({ user, onClose }: {
@@ -16,238 +28,403 @@ function ProfileModal({ user, onClose }: {
   if (!user) return null;
   const initials = (user.username || 'U').slice(0, 2).toUpperCase();
   return (
-    <div className="fixed inset-0 bg-black/65 backdrop-blur-sm flex items-center justify-center z-50 animate-[fadeIn_0.18s_ease]" onClick={onClose}>
-      <div className="bg-[#16161f] border border-[#24243a] rounded-[20px] p-8 relative w-[90vw] max-w-sm text-center animate-[slideUp_0.22s_cubic-bezier(0.4,0,0.2,1)]" onClick={e => e.stopPropagation()}>
-        <button onClick={onClose} className="absolute top-3.5 right-3.5 w-8 h-8 rounded-full bg-[#1e1e2e] border border-[#28283c] text-[#6868a0] flex items-center justify-center hover:bg-[#28283e] hover:text-[#d0d0f0] transition-all">
-          <X size={16} />
+    <ModalOverlay onClose={onClose}>
+      <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-2xl p-8 relative w-[90vw] max-w-sm text-center">
+        <button onClick={onClose} className="absolute top-3.5 right-3.5 w-8 h-8 rounded-full bg-[#111] border border-[#222] text-[#555] flex items-center justify-center hover:bg-[#1a1a1a] hover:text-white transition-all">
+          <X size={14} />
         </button>
-        <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#6c3de5] to-[#3d8ef5] flex items-center justify-center text-2xl font-bold text-white mx-auto mb-3.5 shadow-[0_6px_24px_rgba(108,61,229,0.4)]">
+        <div className="w-20 h-20 rounded-full bg-white flex items-center justify-center text-2xl font-bold text-black mx-auto mb-4 shadow-[0_0_40px_rgba(255,255,255,0.06)]">
           {user.avatar || initials}
         </div>
-        <h2 className="text-xl font-bold text-[#f0f0f8] mb-1">{user.username}</h2>
-        <p className="text-sm text-[#5a5a88] mb-5">{user.email}</p>
-        <div className="border-t border-[#1e1e2e] pt-2.5 flex flex-col gap-0">
-          <div className="flex justify-between items-center py-2.5 border-b border-[#1e1e2e]">
-            <span className="text-xs text-[#48487a] font-medium">Статус</span>
-            <span className="text-sm text-[#c0c0e0] font-semibold flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-[#3db87a] inline-block" />онлайн
+        <h2 className="text-xl font-bold text-white mb-1">{user.username}</h2>
+        <p className="text-sm text-[#555] mb-5">{user.email}</p>
+        <div className="border-t border-[#1a1a1a] pt-3 flex flex-col gap-0">
+          <div className="flex justify-between items-center py-2.5 border-b border-[#111]">
+            <span className="text-xs text-[#444] font-medium uppercase tracking-wider">Статус</span>
+            <span className="text-sm text-white font-semibold flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-[#4ade80] inline-block" />онлайн
             </span>
           </div>
           <div className="flex justify-between items-center py-2.5">
-            <span className="text-xs text-[#48487a] font-medium">ID</span>
-            <span className="text-xs font-mono text-[#7070b8]">{user.username.toLowerCase().replace(/\s/g, '_')}</span>
+            <span className="text-xs text-[#444] font-medium uppercase tracking-wider">ID</span>
+            <span className="text-xs font-mono text-[#666]">{user.username.toLowerCase().replace(/\s/g, '_')}</span>
           </div>
         </div>
       </div>
-    </div>
+    </ModalOverlay>
+  );
+}
+
+/* ── Shared user list item ───────────────────────────────── */
+function UserSelectRow({ user, selected, onToggle }: {
+  user: { _id: string; username: string; avatar?: string; isOnline: boolean };
+  selected: boolean;
+  onToggle: () => void;
+}) {
+  const initials = user.username.slice(0, 2).toUpperCase();
+  return (
+    <button onClick={onToggle}
+      className={`flex items-center gap-3 w-full px-3.5 py-2.5 rounded-xl transition-all text-left ${selected ? 'bg-white/[0.05] border border-white/10' : 'hover:bg-white/[0.03] border border-transparent'}`}>
+      <div className="relative w-9 h-9 rounded-full bg-[#222] flex items-center justify-center text-sm font-bold text-white flex-shrink-0">
+        {user.avatar && user.avatar !== '👤' ? user.avatar : initials}
+        <span className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-[#0a0a0a] ${user.isOnline ? 'bg-[#4ade80]' : 'bg-[#333]'}`} />
+      </div>
+      <span className="flex-1 text-sm text-[#ccc] font-medium truncate">{user.username}</span>
+      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${selected ? 'bg-white border-white' : 'border-[#333]'}`}>
+        {selected && <Check size={11} className="text-black" />}
+      </div>
+    </button>
   );
 }
 
 /* ── Create Group Modal ──────────────────────────────────── */
-function CreateGroupModal({ onClose, onCreate }: { onClose: () => void; onCreate: (name: string) => void }) {
+function CreateGroupModal({ onClose, onCreate }: {
+  onClose: () => void;
+  onCreate: (name: string, participantIds: Id<'users'>[]) => Promise<void>;
+}) {
   const [name, setName] = useState('');
-  const ref = useRef<HTMLInputElement>(null);
-  useEffect(() => { ref.current?.focus(); }, []);
-  const handle = () => { if (name.trim()) { onCreate(name.trim()); onClose(); } };
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [search, setSearch] = useState('');
+  const [loading, setLoading] = useState(false);
+  const allUsers = useQuery(api.users.getAllUsers) as Array<{ _id: string; username: string; avatar?: string; isOnline: boolean }> | undefined;
+  const nameRef = useRef<HTMLInputElement>(null);
+  useEffect(() => { nameRef.current?.focus(); }, []);
+
+  const filtered = (allUsers ?? []).filter(u => u.username.toLowerCase().includes(search.toLowerCase()));
+  const toggle = (id: string) => setSelected(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const handle = async () => { if (!name.trim() || selected.size === 0) return; setLoading(true); await onCreate(name.trim(), [...selected] as Id<'users'>[]); setLoading(false); };
+  const canCreate = name.trim().length > 0 && selected.size > 0;
+
   return (
-    <div className="fixed inset-0 bg-black/65 backdrop-blur-sm flex items-center justify-center z-50 animate-[fadeIn_0.18s_ease]" onClick={onClose}>
-      <div className="bg-[#16161f] border border-[#24243a] rounded-[20px] p-8 relative w-[90vw] max-w-sm animate-[slideUp_0.22s_cubic-bezier(0.4,0,0.2,1)]" onClick={e => e.stopPropagation()}>
-        <button onClick={onClose} className="absolute top-3.5 right-3.5 w-8 h-8 rounded-full bg-[#1e1e2e] border border-[#28283c] text-[#6868a0] flex items-center justify-center hover:bg-[#28283e] hover:text-[#d0d0f0] transition-all">
-          <X size={16} />
-        </button>
-        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#6c3de5] to-[#3d8ef5] flex items-center justify-center text-white mx-auto mb-4 shadow-[0_4px_16px_rgba(108,61,229,0.35)]">
-          <UsersRound size={26} />
+    <ModalOverlay onClose={onClose}>
+      <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-2xl p-6 relative w-[90vw] max-w-sm flex flex-col max-h-[85vh]">
+        <button onClick={onClose} className="absolute top-3.5 right-3.5 w-8 h-8 rounded-full bg-[#111] border border-[#222] text-[#555] flex items-center justify-center hover:bg-[#1a1a1a] hover:text-white transition-all"><X size={14} /></button>
+        <div className="w-12 h-12 rounded-2xl bg-white flex items-center justify-center text-black mx-auto mb-3"><UsersRound size={22} /></div>
+        <h2 className="text-[17px] font-bold text-white text-center mb-4">Создать группу</h2>
+        <input ref={nameRef} type="text" placeholder="Название группы..." value={name} onChange={e => setName(e.target.value)} maxLength={50}
+          className="w-full bg-[#111] border border-[#222] rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-[#333] outline-none mb-3 transition-all focus:border-[#444]" />
+        <div className="relative mb-2">
+          <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#333]" />
+          <input type="text" placeholder="Найти участников..." value={search} onChange={e => setSearch(e.target.value)}
+            className="w-full bg-[#111] border border-[#222] rounded-xl py-2 pl-8 pr-3 text-xs text-white placeholder-[#333] outline-none transition-all focus:border-[#444]" />
         </div>
-        <h2 className="text-[19px] font-bold text-[#f0f0f8] text-center mb-1.5">Создать группу</h2>
-        <p className="text-sm text-[#48487a] text-center mb-5">Введите название новой группы</p>
-        <input
-          ref={ref} type="text" placeholder="Название группы..." value={name}
-          onChange={e => setName(e.target.value)} onKeyDown={e => e.key === 'Enter' && handle()}
-          maxLength={50}
-          className="w-full bg-[#1a1a2c] border border-[#28283c] rounded-xl px-3.5 py-3 text-sm text-[#d0d0ec] placeholder-[#34344e] outline-none mb-3.5 transition-all focus:border-[#4a6cf7] focus:shadow-[0_0_0_3px_rgba(74,108,247,0.12)]"
-        />
-        <button onClick={handle} disabled={!name.trim()}
-          className={`flex items-center justify-center gap-2 w-full py-3 rounded-xl text-sm font-semibold transition-all duration-200 ${name.trim() ? 'bg-gradient-to-br from-[#4a6cf7] to-[#3a5ce5] text-white border border-[#4a6cf7] shadow-[0_4px_14px_rgba(74,108,247,0.35)] hover:-translate-y-px' : 'bg-[#1a1a2c] border border-[#28283c] text-[#3a3a6a] cursor-not-allowed'}`}>
-          <Plus size={16} /> Создать группу
+        {selected.size > 0 && <p className="text-xs text-white font-semibold mb-1.5 px-0.5">Выбрано: {selected.size}</p>}
+        <div className="flex-1 overflow-y-auto flex flex-col gap-0.5 min-h-0 mb-4">
+          {!allUsers ? <div className="flex justify-center py-4"><div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin" /></div>
+          : filtered.length === 0 ? <p className="text-center text-xs text-[#333] py-4">Нет пользователей</p>
+          : filtered.map(u => <UserSelectRow key={u._id} user={u} selected={selected.has(u._id)} onToggle={() => toggle(u._id)} />)}
+        </div>
+        <button onClick={handle} disabled={!canCreate || loading}
+          className={`flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 flex-shrink-0 ${canCreate && !loading ? 'bg-white text-black hover:bg-[#e8e8e8] active:scale-[0.98]' : 'bg-[#111] border border-[#222] text-[#333] cursor-not-allowed'}`}>
+          {loading ? <div className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" /> : <><Plus size={15} /> Создать группу</>}
         </button>
       </div>
-    </div>
+    </ModalOverlay>
+  );
+}
+
+/* ── New Direct Chat Modal ────────────────────────────────── */
+function NewChatModal({ onClose, onCreate }: {
+  onClose: () => void;
+  onCreate: (userId: Id<'users'>, username: string) => Promise<void>;
+}) {
+  const [search, setSearch] = useState('');
+  const [loading, setLoading] = useState<string | null>(null);
+  const allUsers = useQuery(api.users.getAllUsers) as Array<{ _id: string; username: string; avatar?: string; isOnline: boolean }> | undefined;
+  const filtered = (allUsers ?? []).filter(u => u.username.toLowerCase().includes(search.toLowerCase()));
+  const handleSelect = async (u: { _id: string; username: string }) => { setLoading(u._id); await onCreate(u._id as Id<'users'>, u.username); setLoading(null); };
+
+  return (
+    <ModalOverlay onClose={onClose}>
+      <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-2xl p-6 relative w-[90vw] max-w-sm flex flex-col max-h-[80vh]">
+        <button onClick={onClose} className="absolute top-3.5 right-3.5 w-8 h-8 rounded-full bg-[#111] border border-[#222] text-[#555] flex items-center justify-center hover:bg-[#1a1a1a] hover:text-white transition-all"><X size={14} /></button>
+        <div className="w-12 h-12 rounded-2xl bg-white flex items-center justify-center text-black mx-auto mb-3"><MessageCircle size={22} /></div>
+        <h2 className="text-[17px] font-bold text-white text-center mb-4">Новый чат</h2>
+        <div className="relative mb-3">
+          <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#333]" />
+          <input type="text" placeholder="Найти пользователя..." value={search} onChange={e => setSearch(e.target.value)} autoFocus
+            className="w-full bg-[#111] border border-[#222] rounded-xl py-2.5 pl-8 pr-3 text-sm text-white placeholder-[#333] outline-none transition-all focus:border-[#444]" />
+        </div>
+        <div className="flex-1 overflow-y-auto flex flex-col gap-0.5 min-h-0">
+          {!allUsers ? <div className="flex justify-center py-4"><div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin" /></div>
+          : filtered.length === 0 ? <p className="text-center text-xs text-[#333] py-4">Нет пользователей</p>
+          : filtered.map(u => (
+            <button key={u._id} onClick={() => handleSelect(u)} disabled={loading === u._id}
+              className="flex items-center gap-3 w-full px-3.5 py-2.5 rounded-xl hover:bg-white/[0.03] transition-all text-left border border-transparent hover:border-[#1a1a1a]">
+              <div className="relative w-9 h-9 rounded-full bg-[#222] flex items-center justify-center text-sm font-bold text-white flex-shrink-0">
+                {u.avatar && u.avatar !== '👤' ? u.avatar : u.username.slice(0, 2).toUpperCase()}
+                <span className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-[#0a0a0a] ${u.isOnline ? 'bg-[#4ade80]' : 'bg-[#333]'}`} />
+              </div>
+              <span className="flex-1 text-sm text-[#ccc] font-medium truncate">{u.username}</span>
+              {loading === u._id ? <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" /> : <MessageCircle size={15} className="text-[#333]" />}
+            </button>
+          ))}
+        </div>
+      </div>
+    </ModalOverlay>
   );
 }
 
 /* ── Main Page ───────────────────────────────────────────── */
+
+interface ConvexChatWithPreview {
+  _id: string; name: string; avatar?: string; isGroup: boolean; createdAt: number;
+  lastMessage: string | null; lastMessageType: string | null; lastMessageTime: number | null; unreadCount: number;
+}
+
+interface ConvexMsg {
+  _id: string; senderId: string; text: string; messageType?: MessageType; fileUrl?: string; isRead: boolean; createdAt: number;
+}
+
 export function ChatListPage() {
-  const { chats, auth, logout, setCurrentChat, messages, sendMessage, markAsRead } = useApp();
+  const { auth, logout, createChat } = useApp();
   const navigate = useNavigate();
+  const currentUserId = auth.user?.id as Id<'users'> | undefined;
+
+  const convexChats = useQuery(api.users.getChatsWithLastMessage, currentUserId ? { userId: currentUserId } : 'skip') as ConvexChatWithPreview[] | undefined;
 
   const [searchQuery, setSearchQuery] = useState('');
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
   const [messageText, setMessageText] = useState('');
-  const [darkMode, setDarkMode] = useState(true);
   const [showProfile, setShowProfile] = useState(false);
   const [showCreateGroup, setShowCreateGroup] = useState(false);
+  const [showNewChat, setShowNewChat] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const prevMsgCountRef = useRef<number>(0);
+
+  const activeChatIdTyped = activeChatId as Id<'chats'> | null;
+
+  const chatMessages = useQuery(api.users.getMessagesForChat, activeChatIdTyped && currentUserId ? { chatId: activeChatIdTyped, limit: 100 } : 'skip') as ConvexMsg[] | undefined;
+  const typingUsers = useQuery(api.users.getTypingUsers, activeChatIdTyped && currentUserId ? { chatId: activeChatIdTyped, currentUserId } : 'skip') as string[] | undefined;
+  const participantsStatus = useQuery(api.users.getChatParticipantsStatus, activeChatIdTyped && currentUserId ? { chatId: activeChatIdTyped, currentUserId } : 'skip') as Array<{ _id: string; username: string; isOnline: boolean; lastSeen: number }> | undefined;
+
+  const sendMessageMut = useMutation(api.users.sendMessage);
+  const markAsReadMut = useMutation(api.users.markMessagesAsRead);
+  const setTypingMut = useMutation(api.users.setTyping);
+  const clearTypingMut = useMutation(api.users.clearTyping);
 
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', darkMode ? 'dark' : 'light');
-  }, [darkMode]);
+    if (activeChatIdTyped && currentUserId) markAsReadMut({ chatId: activeChatIdTyped, userId: currentUserId }).catch(() => {});
+  }, [activeChatIdTyped, currentUserId, chatMessages?.length, markAsReadMut]);
 
-  const filteredChats = chats.filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase()));
-  const chatMessages: MessageType[] = activeChatId ? (messages[activeChatId] || []) : [];
+  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [chatMessages?.length]);
 
-  useEffect(() => { if (activeChatId) markAsRead(activeChatId); }, [activeChatId]);
-  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [chatMessages]);
-
-  const handleChatClick = (chat: ChatType) => { setCurrentChat(chat); setActiveChatId(chat.id); };
-
-  const handleSend = () => {
-    if (messageText.trim() && activeChatId) {
-      sendMessage(activeChatId, messageText.trim());
-      setMessageText('');
-      if (inputRef.current) inputRef.current.style.height = 'auto';
+  // Play notification sound on new incoming messages
+  useEffect(() => {
+    if (!chatMessages) return;
+    const count = chatMessages.length;
+    if (prevMsgCountRef.current > 0 && count > prevMsgCountRef.current) {
+      const last = chatMessages[count - 1];
+      if (last && last.senderId !== currentUserId) playMessageSound();
     }
-  };
+    prevMsgCountRef.current = count;
+  }, [chatMessages, currentUserId]);
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
-  };
+  useEffect(() => {
+    return () => { clearTimeout(typingTimeoutRef.current); if (activeChatIdTyped && currentUserId) clearTypingMut({ chatId: activeChatIdTyped, userId: currentUserId }).catch(() => {}); };
+  }, [activeChatIdTyped, currentUserId, clearTypingMut]);
+
+  const handleTypingStart = useCallback(() => {
+    if (!activeChatIdTyped || !currentUserId || !auth.user?.username) return;
+    setTypingMut({ chatId: activeChatIdTyped, userId: currentUserId, username: auth.user.username }).catch(() => {});
+    clearTimeout(typingTimeoutRef.current);
+    typingTimeoutRef.current = setTimeout(() => { if (activeChatIdTyped && currentUserId) clearTypingMut({ chatId: activeChatIdTyped, userId: currentUserId }).catch(() => {}); }, 3000);
+  }, [activeChatIdTyped, currentUserId, auth.user?.username, setTypingMut, clearTypingMut]);
 
   const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setMessageText(e.target.value);
     e.target.style.height = 'auto';
     e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`;
+    handleTypingStart();
   };
 
-  const formatTime = (date?: Date) => {
-    if (!date) return '';
-    const diff = Date.now() - date.getTime();
+  const handleSend = useCallback(async () => {
+    if (!messageText.trim() || !activeChatIdTyped || !currentUserId) return;
+    const text = messageText.trim();
+    setMessageText('');
+    if (inputRef.current) inputRef.current.style.height = 'auto';
+    clearTimeout(typingTimeoutRef.current);
+    clearTypingMut({ chatId: activeChatIdTyped, userId: currentUserId }).catch(() => {});
+    playSendSound();
+    await sendMessageMut({ chatId: activeChatIdTyped, senderId: currentUserId, text, messageType: 'text' });
+  }, [messageText, activeChatIdTyped, currentUserId, sendMessageMut, clearTypingMut]);
+
+  const handleKeyDown = (e: React.KeyboardEvent) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } };
+
+  const fmtListTime = (ts: number | null): string => {
+    if (!ts) return '';
+    const diff = Date.now() - ts;
     const h = Math.floor(diff / 3600000), d = Math.floor(diff / 86400000);
-    if (h < 1) return `${Math.floor(diff / 60000)}м`;
+    if (h < 1) return `${Math.max(1, Math.floor(diff / 60000))}м`;
     if (h < 24) return `${h}ч`;
     if (d < 7) return `${d}д`;
-    return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+    return new Date(ts).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
   };
 
-  const fmtTime = (d: Date) => d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+  const fmtMsgTime = (ts: number) => new Date(ts).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
 
-  const fmtDate = (date: Date) => {
-    const days = Math.floor((Date.now() - date.getTime()) / 86400000);
+  const fmtDate = (ts: number) => {
+    const days = Math.floor((Date.now() - ts) / 86400000);
     if (days === 0) return 'Сегодня';
     if (days === 1) return 'Вчера';
     if (days < 7) return `${days} дн. назад`;
-    return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
+    return new Date(ts).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
   };
 
-  const MsgStatus = ({ msg }: { msg: MessageType }) => {
-    if (msg.senderId !== 'me') return null;
-    return msg.isRead
-      ? <CheckCheck size={13} className="text-white/80" />
-      : <Check size={13} className="text-white/50" />;
+  const getLastMsgPreview = (chat: ConvexChatWithPreview): string => {
+    if (!chat.lastMessage) return 'Нет сообщений';
+    const t = chat.lastMessageType ?? 'text';
+    if (t === 'image') return '📷 Фото';
+    if (t === 'video' || t === 'video_message') return '🎥 Видео';
+    if (t === 'sticker') return `${chat.lastMessage}`;
+    return chat.lastMessage;
   };
 
-  const activeChat = chats.find(c => c.id === activeChatId);
+  const filteredChats = (convexChats ?? []).filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase()));
+  const activeChat = (convexChats ?? []).find(c => c._id === activeChatId);
   const initials = (auth.user?.username || 'U').slice(0, 2).toUpperCase();
+  const typingText = typingUsers && typingUsers.length > 0 ? (typingUsers.length === 1 ? `${typingUsers[0]} печатает...` : `${typingUsers.length} чел. печатают...`) : null;
 
-  // shared classes
-  const navBtn = "flex items-center gap-3 px-[18px] py-[11px] text-[#8888b0] text-sm font-medium cursor-pointer transition-all duration-150 select-none hover:bg-[#1a1a28] hover:text-[#e0e0f8]";
+  const fmtLastSeen = (ts: number): string => {
+    const diff = Date.now() - ts;
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return 'только что';
+    if (mins < 60) return `был(а) ${mins} мин. назад`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `был(а) ${hrs} ч. назад`;
+    const days = Math.floor(hrs / 24);
+    if (days < 7) return `был(а) ${days} дн. назад`;
+    return `был(а) ${new Date(ts).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}`;
+  };
+
+  const getOnlineStatus = (): { text: string; isOnline: boolean } => {
+    if (!participantsStatus || participantsStatus.length === 0) return { text: '', isOnline: false };
+    if (activeChat?.isGroup) {
+      const onlineCount = participantsStatus.filter(p => p.isOnline).length;
+      return { text: `${participantsStatus.length + 1} уч., ${onlineCount} онлайн`, isOnline: onlineCount > 0 };
+    }
+    const other = participantsStatus[0];
+    if (!other) return { text: '', isOnline: false };
+    return other.isOnline ? { text: 'онлайн', isOnline: true } : { text: fmtLastSeen(other.lastSeen), isOnline: false };
+  };
+
+  const onlineStatus = getOnlineStatus();
+
+  const navBtn = "flex items-center gap-3 px-5 py-3 text-[#666] text-sm font-medium cursor-pointer transition-all duration-200 select-none hover:bg-white/[0.03] hover:text-white";
 
   return (
     <>
       {showProfile && <ProfileModal user={auth.user} onClose={() => setShowProfile(false)} />}
-      {showCreateGroup && <CreateGroupModal onClose={() => setShowCreateGroup(false)} onCreate={n => alert(`Группа «${n}» будет создана после подключения бэкенда.`)} />}
+      {showCreateGroup && <CreateGroupModal onClose={() => setShowCreateGroup(false)} onCreate={async (name, pids) => { const id = await createChat(name, true, pids); setShowCreateGroup(false); if (id) setActiveChatId(id); }} />}
+      {showNewChat && <NewChatModal onClose={() => setShowNewChat(false)} onCreate={async (uid, uname) => { const id = await createChat(uname, false, [uid]); setShowNewChat(false); if (id) setActiveChatId(id); }} />}
 
-      <div className="flex h-screen w-screen overflow-hidden bg-[#0a0a10] p-3 gap-2.5">
+      <div className="flex h-screen w-screen overflow-hidden bg-black p-2.5 gap-2">
 
-        {/* ══ LEFT NAV PANEL ══ */}
-        <aside className="w-[240px] min-w-[240px] bg-[#13131c] border border-[#1e1e2c] rounded-[20px] flex flex-col overflow-hidden flex-shrink-0">
-          {/* User */}
-          <div className="flex items-center gap-3 px-[18px] py-5 border-b border-[#1e1e2c] flex-shrink-0">
-            <div className="w-[52px] h-[52px] rounded-full bg-gradient-to-br from-[#6c3de5] to-[#3d8ef5] flex items-center justify-center text-[18px] font-bold text-white flex-shrink-0 shadow-[0_4px_16px_rgba(108,61,229,0.4)]">
+        {/* ══ LEFT NAV ══ */}
+        <aside className="w-[220px] min-w-[220px] bg-[#0a0a0a] border border-[#151515] rounded-2xl flex flex-col overflow-hidden flex-shrink-0">
+          <div className="flex items-center gap-3 px-5 py-5 border-b border-[#151515] flex-shrink-0">
+            <div className="w-11 h-11 rounded-full bg-white flex items-center justify-center text-[15px] font-bold text-black flex-shrink-0">
               {auth.user?.avatar || initials}
             </div>
-            <div className="flex flex-col gap-1 min-w-0">
-              <span className="text-[15px] font-bold text-[#f0f0f8] truncate">{auth.user?.username}</span>
-              <span className="text-[11.5px] text-[#5b8af5] cursor-pointer hover:text-[#7aa8ff] transition-colors">Установить статус</span>
+            <div className="flex flex-col gap-0.5 min-w-0">
+              <span className="text-[14px] font-bold text-white truncate">{auth.user?.username}</span>
+              <span className="flex items-center gap-1.5 text-[11px] text-[#4ade80] font-medium">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#4ade80] inline-block" />онлайн
+              </span>
             </div>
           </div>
-
-          {/* Menu */}
-          <nav className="flex-1 overflow-y-auto py-2 flex flex-col">
-            <button onClick={() => setShowProfile(true)} className={navBtn}><User size={19} /><span>Мой профиль</span></button>
-            <div className="h-px bg-[#1e1e2c] my-1" />
-            <button onClick={() => setShowCreateGroup(true)} className={navBtn}><UsersRound size={19} /><span>Создать группу</span></button>
-            <div className="h-px bg-[#1e1e2c] my-1" />
-            <button onClick={() => navigate('/settings')} className={navBtn}><Settings size={19} /><span>Настройки</span></button>
-            <button onClick={() => setDarkMode(v => !v)} className={navBtn}>
-              {darkMode ? <Moon size={19} /> : <Sun size={19} />}
-              <span>Ночной режим</span>
-              <div className={`ml-auto w-9 h-5 rounded-full relative flex-shrink-0 transition-colors duration-250 ${darkMode ? 'bg-[#4a6cf7]' : 'bg-[#252535]'}`}>
-                <div className={`absolute top-[3px] w-3.5 h-3.5 rounded-full bg-white shadow transition-transform duration-250 ${darkMode ? 'translate-x-[19px]' : 'translate-x-[3px]'}`} />
-              </div>
-            </button>
-            <button onClick={logout} className={`${navBtn} text-[#c05050] hover:bg-[rgba(192,80,80,0.1)] hover:text-[#e06060] mt-1`}>
-              <LogOut size={19} /><span>Выйти</span>
-            </button>
+          <nav className="flex-1 overflow-y-auto py-1.5 flex flex-col">
+            <button onClick={() => setShowProfile(true)} className={navBtn}><User size={17} /><span>Профиль</span></button>
+            <button onClick={() => setShowNewChat(true)} className={navBtn}><MessageCircle size={17} /><span>Новый чат</span></button>
+            <button onClick={() => setShowCreateGroup(true)} className={navBtn}><UsersRound size={17} /><span>Группа</span></button>
+            <div className="h-px bg-[#151515] mx-5 my-1" />
+            {auth.user?.isAdmin && (
+              <button onClick={() => navigate('/vpp')} className={`${navBtn} text-[#888]`}><Shield size={17} /><span>Админ</span></button>
+            )}
+            <div className="flex-1" />
+            <button onClick={logout} className={`${navBtn} text-[#555] hover:text-[#ff6b6b]`}><LogOut size={17} /><span>Выйти</span></button>
           </nav>
         </aside>
 
-        {/* ══ CENTER CHAT VIEW ══ */}
-        <main className="flex-1 bg-[#0f0f18] border border-[#1a1a28] rounded-[20px] flex flex-col overflow-hidden min-w-0">
+        {/* ══ CENTER CHAT ══ */}
+        <main className="flex-1 bg-[#060606] border border-[#151515] rounded-2xl flex flex-col overflow-hidden min-w-0">
           {!activeChatId ? (
-            <div className="flex flex-col items-center justify-center h-full gap-3 text-center">
-              <div className="text-6xl opacity-[0.18] animate-[float_3.5s_ease-in-out_infinite]">💬</div>
-              <h2 className="text-xl font-bold text-[#38385a]">Выберите чат</h2>
-              <p className="text-sm text-[#28283e]">Выберите диалог справа, чтобы начать общение</p>
+            <div className="flex flex-col items-center justify-center h-full gap-3 text-center animate-fadeIn">
+              <div className="text-5xl opacity-[0.08] animate-float">💬</div>
+              <h2 className="text-lg font-bold text-[#333]">Выберите чат</h2>
+              <p className="text-sm text-[#222]">Выберите диалог, чтобы начать общение</p>
             </div>
           ) : (
             <>
-              {/* Header */}
-              <div className="flex items-center gap-3 px-[18px] py-3 bg-[#12121e] border-b border-[#1a1a28] flex-shrink-0">
-                <button onClick={() => setActiveChatId(null)} className="hidden w-9 h-9 rounded-full bg-transparent text-[#5a5a88] items-center justify-center hover:bg-[#1e1e2e] hover:text-[#c0c0e0] transition-all">
-                  <ArrowLeft size={20} />
+              {/* Chat header */}
+              <div className="flex items-center gap-3 px-5 py-3 bg-[#080808] border-b border-[#151515] flex-shrink-0">
+                <div className="w-10 h-10 rounded-full bg-[#1a1a1a] flex items-center justify-center text-lg flex-shrink-0 border border-[#222]">
+                  {activeChat?.avatar || '💬'}
+                </div>
+                <div className="flex flex-col gap-0.5 flex-1 min-w-0">
+                  <span className="text-[14px] font-bold text-white truncate">{activeChat?.name ?? '...'}</span>
+                  <span className={`text-[11px] font-medium truncate ${typingText ? 'text-white animate-pulse-soft' : onlineStatus.isOnline ? 'text-[#4ade80]' : 'text-[#555]'}`}>
+                    {typingText ?? onlineStatus.text}
+                  </span>
+                </div>
+                <button onClick={() => navigate(`/chat/${activeChatId}`)} title="Полный экран"
+                  className="text-[#333] hover:text-white transition-colors p-1.5 rounded-lg hover:bg-white/[0.03]">
+                  <Plus size={16} />
                 </button>
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#6c3de5] to-[#3d8ef5] flex items-center justify-center text-lg text-white flex-shrink-0">
-                  {activeChat?.avatar || <MessageCircle size={20} />}
-                </div>
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-[15px] font-bold text-[#f0f0f8]">{activeChat?.name}</span>
-                  <span className="text-[11.5px] font-medium text-[#3db87a]">онлайн</span>
-                </div>
               </div>
 
               {/* Messages */}
-              <div className="flex-1 overflow-y-auto px-6 py-[18px] flex flex-col gap-1.5 bg-[#0f0f18]">
-                {chatMessages.length === 0 ? (
+              <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-1 bg-[#060606]">
+                {!chatMessages ? (
+                  <div className="flex items-center justify-center h-full"><div className="w-6 h-6 border-2 border-white/10 border-t-white/60 rounded-full animate-spin" /></div>
+                ) : chatMessages.length === 0 ? (
                   <div className="flex flex-col items-center justify-center h-full text-center">
-                    <div className="text-5xl opacity-[0.18] mb-4">💬</div>
-                    <p className="text-sm font-semibold text-[#38385a] mb-1">Здесь пока нет сообщений</p>
-                    <p className="text-xs text-[#28283e]">Напишите первое сообщение!</p>
+                    <div className="text-4xl opacity-[0.06] mb-3">💬</div>
+                    <p className="text-sm font-semibold text-[#333] mb-1">Нет сообщений</p>
+                    <p className="text-xs text-[#222]">Напишите первое!</p>
                   </div>
                 ) : (
                   <>
                     {chatMessages.map((msg, i) => {
-                      const isMe = msg.senderId === 'me';
-                      const showDate = i === 0 || new Date(msg.timestamp).toDateString() !== new Date(chatMessages[i - 1].timestamp).toDateString();
+                      const isMe = msg.senderId === currentUserId;
+                      const type = msg.messageType ?? 'text';
+                      const showDate = i === 0 || new Date(msg.createdAt).toDateString() !== new Date(chatMessages[i - 1].createdAt).toDateString();
                       return (
-                        <div key={msg.id}>
+                        <div key={msg._id}>
                           {showDate && (
                             <div className="flex justify-center my-3">
-                              <span className="bg-[#18182a] border border-[#24243a] text-[#50508a] text-[10.5px] font-semibold px-3 py-1 rounded-xl uppercase tracking-wider">
-                                {fmtDate(msg.timestamp)}
-                              </span>
+                              <span className="bg-[#111] border border-[#1a1a1a] text-[#444] text-[10px] font-semibold px-3 py-1 rounded-full uppercase tracking-wider">{fmtDate(msg.createdAt)}</span>
                             </div>
                           )}
-                          <div className={`flex max-w-[62%] animate-[msgPop_0.18s_ease-out] ${isMe ? 'ml-auto' : 'mr-auto'}`}>
-                            <div className={`px-3.5 py-2.5 rounded-2xl ${isMe ? 'bg-gradient-to-br from-[#4a6cf7] to-[#3a5ce5] text-white rounded-br-[4px] shadow-[0_3px_16px_rgba(74,108,247,0.28)]' : 'bg-[#1c1c2e] text-[#d0d0ec] border border-[#26263c] rounded-bl-[4px]'}`}>
-                              <p className="text-[14px] leading-relaxed break-words whitespace-pre-wrap">{msg.text}</p>
-                              <div className="flex items-center gap-1 mt-1 justify-end">
-                                <span className={`text-[10.5px] font-medium ${isMe ? 'text-white/55' : 'text-[#484868]'}`}>{fmtTime(msg.timestamp)}</span>
-                                <MsgStatus msg={msg} />
+                          {type === 'sticker' ? (
+                            <div className={`flex ${isMe ? 'justify-end' : 'justify-start'} my-0.5`}>
+                              <div className="flex flex-col items-end gap-0.5">
+                                <span className="text-4xl leading-none select-none">{msg.text}</span>
+                                <span className="text-[9px] text-[#333]">{fmtMsgTime(msg.createdAt)}</span>
                               </div>
                             </div>
-                          </div>
+                          ) : type === 'image' && msg.fileUrl ? (
+                            <div className={`flex ${isMe ? 'justify-end' : 'justify-start'} my-0.5`}>
+                              <img src={msg.fileUrl} alt="фото" className="max-w-[180px] rounded-xl cursor-pointer border border-[#1a1a1a]" onClick={() => window.open(msg.fileUrl, '_blank')} />
+                            </div>
+                          ) : type === 'video' && msg.fileUrl ? (
+                            <div className={`flex ${isMe ? 'justify-end' : 'justify-start'} my-0.5`}><video src={msg.fileUrl} controls className="max-w-[180px] rounded-xl" /></div>
+                          ) : type === 'video_message' && msg.fileUrl ? (
+                            <div className={`flex ${isMe ? 'justify-end' : 'justify-start'} my-0.5`}><video src={msg.fileUrl} controls playsInline className="w-24 h-24 rounded-full object-cover border-2 border-white/10" /></div>
+                          ) : (
+                            <div className={`flex max-w-[62%] animate-msgPop ${isMe ? 'ml-auto' : 'mr-auto'}`}>
+                              <div className={`px-3.5 py-2.5 rounded-2xl ${isMe ? 'bg-white text-black rounded-br-[4px]' : 'bg-[#111] text-[#ccc] border border-[#1a1a1a] rounded-bl-[4px]'}`}>
+                                <p className="text-[13.5px] leading-relaxed break-words whitespace-pre-wrap">{msg.text}</p>
+                                <div className="flex items-center gap-1 mt-1 justify-end">
+                                  <span className={`text-[10px] font-medium ${isMe ? 'text-black/40' : 'text-[#333]'}`}>{fmtMsgTime(msg.createdAt)}</span>
+                                  {isMe && (msg.isRead ? <CheckCheck size={12} className="text-black/50" /> : <Check size={12} className="text-black/30" />)}
+                                </div>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       );
                     })}
@@ -257,20 +434,14 @@ export function ChatListPage() {
               </div>
 
               {/* Input bar */}
-              <div className="flex items-end gap-2.5 px-[18px] py-3 bg-[#12121e] border-t border-[#1a1a28] flex-shrink-0">
-                <button className="w-10 h-10 rounded-full bg-[#1a1a2c] border border-[#24243a] text-[#50508a] flex items-center justify-center hover:bg-[#22223a] hover:text-[#8888c0] transition-all flex-shrink-0">
-                  <Paperclip size={18} />
-                </button>
-                <div className="flex-1 bg-[#18182e] rounded-[18px] px-3.5 py-2.5 flex items-end border border-[#24243a] focus-within:border-[#4a6cf7] focus-within:shadow-[0_0_0_3px_rgba(74,108,247,0.1)] transition-all">
-                  <textarea
-                    ref={inputRef} placeholder="Написать сообщение..." value={messageText}
-                    onChange={handleInput} onKeyDown={handleKeyDown} rows={1}
-                    className="w-full bg-transparent resize-none max-h-[120px] text-sm leading-relaxed py-0.5 text-[#d0d0ec] placeholder-[#34344e] outline-none"
-                  />
+              <div className="flex items-end gap-2 px-4 py-3 bg-[#080808] border-t border-[#151515] flex-shrink-0">
+                <div className="flex-1 bg-[#111] rounded-2xl px-3.5 py-2.5 flex items-end border border-[#1a1a1a] focus-within:border-[#333] transition-all">
+                  <textarea ref={inputRef} placeholder="Сообщение..." value={messageText} onChange={handleInput} onKeyDown={handleKeyDown} rows={1}
+                    className="w-full bg-transparent resize-none max-h-[120px] text-sm leading-relaxed py-0.5 text-white placeholder-[#333] outline-none" />
                 </div>
                 <button onClick={handleSend} disabled={!messageText.trim()}
-                  className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition-all duration-200 ${messageText.trim() ? 'bg-gradient-to-br from-[#4a6cf7] to-[#3a5ce5] text-white border border-[#4a6cf7] shadow-[0_4px_14px_rgba(74,108,247,0.35)] hover:scale-[1.08]' : 'bg-[#1a1a2c] border border-[#24243a] text-[#38385a] cursor-not-allowed'}`}>
-                  <Send size={18} />
+                  className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition-all duration-200 ${messageText.trim() ? 'bg-white text-black hover:scale-105 active:scale-95' : 'bg-[#111] border border-[#1a1a1a] text-[#333] cursor-not-allowed'}`}>
+                  <Send size={16} />
                 </button>
               </div>
             </>
@@ -278,40 +449,39 @@ export function ChatListPage() {
         </main>
 
         {/* ══ RIGHT CHAT LIST ══ */}
-        <section className="w-[300px] min-w-[260px] bg-[#13131c] border border-[#1e1e2c] rounded-[20px] flex flex-col overflow-hidden flex-shrink-0">
-          <div className="px-[18px] py-5 border-b border-[#1e1e2c] flex-shrink-0">
-            <span className="text-[19px] font-bold text-[#f0f0f8] tracking-tight">Сообщения</span>
+        <section className="w-[280px] min-w-[250px] bg-[#0a0a0a] border border-[#151515] rounded-2xl flex flex-col overflow-hidden flex-shrink-0">
+          <div className="px-5 py-5 border-b border-[#151515] flex-shrink-0">
+            <span className="text-[17px] font-bold text-white tracking-tight">Сообщения</span>
           </div>
 
-          <div className="relative px-3 py-2.5 flex-shrink-0">
-            <Search size={15} className="absolute left-6 top-1/2 -translate-y-1/2 text-[#40405e] pointer-events-none" />
-            <input type="text" placeholder="Поиск" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-              className="w-full bg-[#18182c] border border-[#22223a] rounded-xl py-2.5 pl-9 pr-3.5 text-[13.5px] text-[#d0d0ec] placeholder-[#38385a] outline-none transition-all focus:border-[#4a6cf7] focus:shadow-[0_0_0_3px_rgba(74,108,247,0.1)]"
-            />
+          <div className="relative px-3 py-2 flex-shrink-0">
+            <Search size={14} className="absolute left-6 top-1/2 -translate-y-1/2 text-[#333] pointer-events-none" />
+            <input type="text" placeholder="Поиск..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+              className="w-full bg-[#111] border border-[#1a1a1a] rounded-xl py-2.5 pl-9 pr-3.5 text-[13px] text-white placeholder-[#333] outline-none transition-all focus:border-[#333]" />
           </div>
 
           <div className="flex-1 overflow-y-auto">
-            {filteredChats.length === 0 && (
-              <div className="flex flex-col items-center justify-center gap-2.5 py-10 text-[#2e2e48] text-sm text-center">
-                <MessageCircle size={32} className="opacity-20" />
-                <p>Нет чатов</p>
+            {!convexChats ? (
+              <div className="flex items-center justify-center py-10"><div className="w-5 h-5 border-2 border-white/10 border-t-white/60 rounded-full animate-spin" /></div>
+            ) : filteredChats.length === 0 ? (
+              <div className="flex flex-col items-center justify-center gap-2.5 py-10 text-[#222] text-sm text-center">
+                <MessageCircle size={28} className="opacity-20" /><p>Нет чатов</p>
               </div>
-            )}
-            {filteredChats.map(chat => (
-              <div key={chat.id} onClick={() => handleChatClick(chat)}
-                className={`relative flex items-center gap-3 px-3.5 py-3 cursor-pointer transition-colors duration-150 after:absolute after:bottom-0 after:left-[66px] after:right-3.5 after:h-px after:bg-[#1a1a2a] ${activeChatId === chat.id ? 'bg-[#1a2240] before:absolute before:left-0 before:top-0 before:bottom-0 before:w-[3px] before:bg-[#4a6cf7] before:rounded-r-sm' : 'hover:bg-[#18182a]'}`}>
-                <div className="w-[46px] h-[46px] rounded-full bg-[#1e1e30] border border-[#28283c] flex items-center justify-center text-xl text-[#6868a0] flex-shrink-0">
-                  {chat.avatar || (chat.isGroup ? <Users size={20} /> : <MessageCircle size={20} />)}
+            ) : filteredChats.map(chat => (
+              <div key={chat._id} onClick={() => setActiveChatId(chat._id)}
+                className={`relative flex items-center gap-3 px-3.5 py-3 cursor-pointer transition-all duration-150 after:absolute after:bottom-0 after:left-[58px] after:right-3.5 after:h-px after:bg-[#111] ${activeChatId === chat._id ? 'bg-white/[0.04] before:absolute before:left-0 before:top-0 before:bottom-0 before:w-[2px] before:bg-white' : 'hover:bg-white/[0.02]'}`}>
+                <div className="w-[42px] h-[42px] rounded-full bg-[#151515] border border-[#1a1a1a] flex items-center justify-center text-lg text-[#555] flex-shrink-0">
+                  {chat.avatar || (chat.isGroup ? <Users size={18} /> : <MessageCircle size={18} />)}
                 </div>
                 <div className="flex-1 min-w-0 flex flex-col gap-0.5">
                   <div className="flex justify-between items-center gap-1.5">
-                    <span className="text-[14px] font-semibold text-[#e0e0f2] truncate">{chat.name}</span>
-                    <span className="text-[10.5px] text-[#38385a] font-medium flex-shrink-0">{formatTime(chat.lastMessageTime)}</span>
+                    <span className="text-[13.5px] font-semibold text-[#e0e0e0] truncate">{chat.name}</span>
+                    <span className="text-[10px] text-[#333] font-medium flex-shrink-0">{fmtListTime(chat.lastMessageTime)}</span>
                   </div>
                   <div className="flex justify-between items-center gap-1.5">
-                    <span className="text-[12.5px] text-[#48487a] truncate">{chat.lastMessage || 'Нет сообщений'}</span>
+                    <span className="text-[12px] text-[#444] truncate">{getLastMsgPreview(chat)}</span>
                     {chat.unreadCount > 0 && (
-                      <span className="bg-[#4a6cf7] text-white text-[10.5px] font-bold px-1.5 py-0.5 rounded-[9px] min-w-[18px] text-center flex-shrink-0 shadow-[0_2px_8px_rgba(74,108,247,0.4)]">
+                      <span className="bg-white text-black text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center flex-shrink-0">
                         {chat.unreadCount > 99 ? '99+' : chat.unreadCount}
                       </span>
                     )}
@@ -322,13 +492,6 @@ export function ChatListPage() {
           </div>
         </section>
       </div>
-
-      <style>{`
-        @keyframes fadeIn { from{opacity:0} to{opacity:1} }
-        @keyframes slideUp { from{opacity:0;transform:translateY(20px) scale(0.97)} to{opacity:1;transform:translateY(0) scale(1)} }
-        @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-10px)} }
-        @keyframes msgPop { from{opacity:0;transform:translateY(5px)} to{opacity:1;transform:translateY(0)} }
-      `}</style>
     </>
   );
 }

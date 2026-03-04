@@ -1,3 +1,5 @@
+export type MessageType = 'text' | 'image' | 'video' | 'sticker' | 'video_message';
+
 export interface User {
   id: string;
   username: string;
@@ -11,25 +13,25 @@ export interface User {
 }
 
 export interface Message {
-  id: string;
+  _id: string;
   chatId: string;
   senderId: string;
   text: string;
-  image?: string;
-  timestamp: Date;
+  messageType?: MessageType;
+  fileUrl?: string;
   isRead: boolean;
+  createdAt: number;
 }
 
 export interface Chat {
-  id: string;
+  _id: string;
   name: string;
   avatar?: string;
-  lastMessage?: string;
-  lastMessageTime?: Date;
+  lastMessage?: string | null;
+  lastMessageType?: MessageType | null;
+  lastMessageTime?: number | null;
   unreadCount: number;
-  participants: string[];
   isGroup: boolean;
-  isOnline?: boolean;
 }
 
 export interface AuthState {
