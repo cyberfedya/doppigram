@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation } from 'convex/react';
 import { api } from '../../convex/_generated/api';
-import { Key, UserPlus, CheckCircle, AlertCircle } from 'lucide-react';
+import { useTheme } from '../context/ThemeContext';
+import { Key, UserPlus, CheckCircle, AlertCircle, Sun, Moon } from 'lucide-react';
 
 export default function InitAdmin() {
   const [username, setUsername] = useState('');
@@ -11,77 +12,94 @@ export default function InitAdmin() {
   const [isLoading, setIsLoading] = useState(false);
 
   const navigate = useNavigate();
+  const { theme, toggleTheme } = useTheme();
   const createInitialAdmin = useMutation(api.seed.createInitialAdmin);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setMessage(null);
-    if (!username.trim() || !password.trim()) { setMessage({ type: 'error', text: 'Все поля обязательны для заполнения' }); return; }
-    if (password.length < 6) { setMessage({ type: 'error', text: 'Пароль должен содержать минимум 6 символов' }); return; }
+    if (!username.trim() || !password.trim()) { setMessage({ type: 'error', text: 'All fields are required' }); return; }
+    if (password.length < 6) { setMessage({ type: 'error', text: 'Password must be at least 6 characters' }); return; }
     setIsLoading(true);
     try {
       await createInitialAdmin({ username, password });
-      setMessage({ type: 'success', text: `Админ «${username}» создан! Перенаправление...` });
+      setMessage({ type: 'success', text: `Admin "${username}" created! Redirecting...` });
       setTimeout(() => navigate('/login'), 2000);
     } catch (error) {
-      setMessage({ type: 'error', text: 'Ошибка: ' + error });
+      setMessage({ type: 'error', text: 'Error: ' + error });
     }
     setIsLoading(false);
   };
 
   return (
-    <div className="min-h-screen bg-black flex items-center justify-center p-4 relative">
-      <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, white 1px, transparent 0)', backgroundSize: '40px 40px' }} />
+    <div className="min-h-screen flex items-center justify-center p-4 relative" style={{ backgroundColor: 'var(--bg-base)' }}>
+      <div className="absolute inset-0 opacity-[0.03]" style={{
+        backgroundImage: 'radial-gradient(circle at 1px 1px, var(--tx-dim) 1px, transparent 0)',
+        backgroundSize: '40px 40px'
+      }} />
+
+      <button onClick={toggleTheme}
+        className="absolute top-5 right-5 w-10 h-10 rounded-xl flex items-center justify-center transition-all active:scale-95 themed-border"
+        style={{ backgroundColor: 'var(--bg-card)' }}>
+        {theme === 'dark' ? <Sun size={18} style={{ color: 'var(--tx-secondary)' }} /> : <Moon size={18} style={{ color: 'var(--tx-secondary)' }} />}
+      </button>
 
       <div className="w-full max-w-[400px] relative animate-fadeInUp">
         <div className="text-center mb-10">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-white rounded-2xl mb-5 shadow-[0_0_60px_rgba(255,255,255,0.08)]">
-            <Key className="h-7 w-7 text-black" />
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-5"
+            style={{ backgroundColor: 'var(--accent)', boxShadow: '0 0 60px rgba(255,255,255,0.06)' }}>
+            <Key className="h-7 w-7" style={{ color: 'var(--bg-base)' }} />
           </div>
-          <h1 className="text-[28px] font-extrabold text-white tracking-tight">Начальная настройка</h1>
-          <p className="text-[#555] mt-1.5 text-sm font-medium">Создайте первого администратора</p>
+          <h1 className="text-[28px] font-extrabold tracking-tight" style={{ color: 'var(--tx-primary)' }}>Initial Setup</h1>
+          <p className="mt-1.5 text-sm font-medium" style={{ color: 'var(--tx-muted)' }}>Create the first administrator</p>
         </div>
 
-        <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-2xl p-7">
-          <div className="flex items-start gap-2.5 mb-6 p-3.5 bg-white/[0.02] border border-white/[0.06] rounded-xl">
-            <AlertCircle className="h-4 w-4 text-[#666] flex-shrink-0 mt-0.5" />
-            <p className="text-[12px] text-[#555] leading-relaxed">
-              Эта страница используется только один раз. После создания первого админа она больше не понадобится.
+        <div className="rounded-2xl p-7 themed-border" style={{ backgroundColor: 'var(--bg-panel)' }}>
+          <div className="flex items-start gap-2.5 mb-6 p-3.5 rounded-xl" style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--bg-border)' }}>
+            <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" style={{ color: 'var(--tx-secondary)' }} />
+            <p className="text-[12px] leading-relaxed" style={{ color: 'var(--tx-secondary)' }}>
+              This page is used only once. After creating the first admin, it will no longer be needed.
             </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
             {message && (
-              <div className={`flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-medium animate-slideDown ${
-                message.type === 'success' ? 'bg-white/[0.03] border border-white/10 text-[#4ade80]' : 'bg-white/[0.03] border border-white/10 text-[#ff6b6b]'
-              }`}>
+              <div className="flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-medium animate-slideDown"
+                style={{
+                  backgroundColor: message.type === 'success' ? 'rgba(74,222,128,0.06)' : 'rgba(255,68,68,0.06)',
+                  border: `1px solid ${message.type === 'success' ? 'rgba(74,222,128,0.2)' : 'rgba(255,68,68,0.15)'}`,
+                  color: message.type === 'success' ? 'var(--online)' : 'var(--danger)'
+                }}>
                 {message.type === 'success' && <CheckCircle className="h-4 w-4 flex-shrink-0" />}
                 {message.text}
               </div>
             )}
 
             <div>
-              <label className="block text-xs font-semibold text-[#666] mb-2 uppercase tracking-wider">Логин админа</label>
+              <label className="block text-xs font-semibold mb-2 uppercase tracking-wider" style={{ color: 'var(--tx-muted)' }}>Admin Username</label>
               <input type="text" value={username} onChange={(e) => setUsername(e.target.value)}
-                className="w-full px-4 py-3 bg-[#111] border border-[#222] rounded-xl text-white text-sm placeholder-[#333] transition-all focus:border-[#444] focus:shadow-[0_0_0_3px_rgba(255,255,255,0.03)]"
+                className="w-full px-4 py-3 rounded-xl text-sm transition-all themed-border themed-border-focus"
+                style={{ backgroundColor: 'var(--bg-input)', color: 'var(--tx-primary)' }}
                 placeholder="admin" disabled={isLoading} autoFocus />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-[#666] mb-2 uppercase tracking-wider">Пароль</label>
+              <label className="block text-xs font-semibold mb-2 uppercase tracking-wider" style={{ color: 'var(--tx-muted)' }}>Password</label>
               <input type="password" value={password} onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-3 bg-[#111] border border-[#222] rounded-xl text-white text-sm placeholder-[#333] transition-all focus:border-[#444] focus:shadow-[0_0_0_3px_rgba(255,255,255,0.03)]"
-                placeholder="Минимум 6 символов" disabled={isLoading} />
+                className="w-full px-4 py-3 rounded-xl text-sm transition-all themed-border themed-border-focus"
+                style={{ backgroundColor: 'var(--bg-input)', color: 'var(--tx-primary)' }}
+                placeholder="Min 6 characters" disabled={isLoading} />
             </div>
 
             <button type="submit" disabled={isLoading}
-              className="w-full bg-white text-black py-3 rounded-xl font-semibold text-sm hover:bg-[#e8e8e8] active:scale-[0.98] transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-2">
-              {isLoading ? <div className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" /> : <><UserPlus className="h-4 w-4" /> Создать админа</>}
+              className="w-full py-3 rounded-xl font-semibold text-sm active:scale-[0.98] transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-2"
+              style={{ backgroundColor: 'var(--accent)', color: 'var(--bg-base)' }}>
+              {isLoading ? <div className="w-4 h-4 border-2 rounded-full animate-spin" style={{ borderColor: 'rgba(0,0,0,0.2)', borderTopColor: 'var(--bg-base)' }} /> : <><UserPlus className="h-4 w-4" /> Create Admin</>}
             </button>
           </form>
 
-          <div className="mt-6 pt-5 border-t border-[#1a1a1a]">
-            <p className="text-[11px] text-[#444] text-center">После создания вы будете направлены на страницу входа</p>
+          <div className="mt-6 pt-5" style={{ borderTop: '1px solid var(--bg-border)' }}>
+            <p className="text-[11px] text-center" style={{ color: 'var(--tx-dim)' }}>After creation, you will be redirected to the login page</p>
           </div>
         </div>
       </div>

@@ -8,7 +8,7 @@ interface AppContextType {
   auth: AuthState;
   login: (username: string, password: string) => Promise<boolean>;
   logout: () => void;
-  createUser: (username: string, password: string, email?: string) => Promise<boolean>;
+  createUser: (username: string, password: string, displayName?: string, email?: string) => Promise<boolean>;
   createChat: (name: string, isGroup: boolean, participantIds: Id<'users'>[]) => Promise<string | null>;
   isLoading: boolean;
 }
@@ -84,10 +84,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const userData: User = {
           id: user._id,
           username: user.username,
+          displayName: user.displayName,
           email: user.email,
           avatar: user.avatar,
           avatarType: user.avatarType,
           isAdmin: user.isAdmin,
+          isVerified: user.isVerified ?? false,
           isOnboarded: true,
           isOnline: true,
           lastSeen: user.lastSeen,
@@ -111,21 +113,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setAuth({ user: null, isAuthenticated: false, isLoading: false });
   }, [auth.user?.id, setUserOnlineMutation]);
 
-  const createUser = useCallback(async (username: string, password: string, email?: string): Promise<boolean> => {
+  const createUser = useCallback(async (username: string, password: string, displayName?: string, email?: string): Promise<boolean> => {
     try {
       const userId = await createUserMutation({
         uid: 'user_' + Date.now() + '_' + username,
-        username,
+        username: username.toLowerCase().trim(),
+        displayName,
         email: email ?? `${username}@doppigram.app`,
         password,
-        avatar: '👤',
-        avatarType: 'emoji',
         isAdmin: false,
       });
       return !!userId;
     } catch (error) {
       console.error('Create user error:', error);
-      return false;
+      throw error;
     }
   }, [createUserMutation]);
 

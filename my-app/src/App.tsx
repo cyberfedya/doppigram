@@ -1,10 +1,12 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AppProvider, useApp } from './context/AppContext';
+import { ThemeProvider } from './context/ThemeContext';
 import Login from './pages/Login';
 import AdminPanel from './pages/AdminPanel';
 import InitAdmin from './pages/InitAdmin';
 import { ChatListPage } from './pages/ChatListPage';
 import { ChatPage } from './pages/ChatPage';
+import SettingsPage from './pages/SettingsPage';
 import './styles/global.css';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -12,10 +14,10 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--bg-base)' }}>
         <div className="text-center animate-fadeIn">
-          <div className="w-10 h-10 border-2 border-white/20 border-t-white rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-[#555] text-sm font-medium">Загрузка...</p>
+          <div className="w-10 h-10 border-2 rounded-full animate-spin mx-auto mb-4" style={{ borderColor: 'var(--bg-border)', borderTopColor: 'var(--accent)' }}></div>
+          <p className="text-sm font-medium" style={{ color: 'var(--tx-secondary)' }}>Loading...</p>
         </div>
       </div>
     );
@@ -33,10 +35,10 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--bg-base)' }}>
         <div className="text-center animate-fadeIn">
-          <div className="w-10 h-10 border-2 border-white/20 border-t-white rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-[#555] text-sm font-medium">Загрузка...</p>
+          <div className="w-10 h-10 border-2 rounded-full animate-spin mx-auto mb-4" style={{ borderColor: 'var(--bg-border)', borderTopColor: 'var(--accent)' }}></div>
+          <p className="text-sm font-medium" style={{ color: 'var(--tx-secondary)' }}>Loading...</p>
         </div>
       </div>
     );
@@ -83,6 +85,14 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
+      <Route
+        path="/settings"
+        element={
+          <ProtectedRoute>
+            <SettingsPage />
+          </ProtectedRoute>
+        }
+      />
       <Route path="/" element={<Navigate to="/chats" replace />} />
       <Route path="*" element={<Navigate to="/chats" replace />} />
     </Routes>
@@ -92,9 +102,11 @@ function AppRoutes() {
 function App() {
   return (
     <BrowserRouter>
-      <AppProvider>
-        <AppRoutes />
-      </AppProvider>
+      <ThemeProvider>
+        <AppProvider>
+          <AppRoutes />
+        </AppProvider>
+      </ThemeProvider>
     </BrowserRouter>
   );
 }

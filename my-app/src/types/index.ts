@@ -1,12 +1,15 @@
 export type MessageType = 'text' | 'image' | 'video' | 'sticker' | 'video_message';
+export type Theme = 'dark' | 'light';
 
 export interface User {
   id: string;
   username: string;
+  displayName?: string;
   email: string;
   avatar?: string;
   avatarType?: 'emoji' | 'image';
   isAdmin: boolean;
+  isVerified: boolean;
   isOnboarded: boolean;
   isOnline?: boolean;
   lastSeen?: number;
@@ -32,6 +35,7 @@ export interface Chat {
   lastMessageTime?: number | null;
   unreadCount: number;
   isGroup: boolean;
+  isVerified?: boolean;
 }
 
 export interface AuthState {

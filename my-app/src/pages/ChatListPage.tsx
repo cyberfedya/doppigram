@@ -2,52 +2,64 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation } from 'convex/react';
 import { useApp } from '../context/AppContext';
+import { useTheme } from '../context/ThemeContext';
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import type { MessageType } from '../types';
 import { playMessageSound, playSendSound } from '../utils/sounds';
+import { VerifiedBadge } from '../components/VerifiedBadge';
+import { TypingIndicator } from '../components/TypingIndicator';
+import { StoryCircles } from '../components/StoryCircles';
 import {
   Search, MessageCircle, LogOut, Users, User,
-  UsersRound, Send, Check, CheckCheck, X, Plus, Shield,
+  UsersRound, Send, CheckCheck, X, Plus, Shield,
+  Camera, Film, MessageSquare, Maximize2, Settings, Check,
 } from 'lucide-react';
 
-/* ── Modal Overlay ────────────────────────────────────────── */
+/* -- Modal Overlay ------------------------------------------------ */
 function ModalOverlay({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 animate-fadeIn" onClick={onClose}>
+    <div className="fixed inset-0 flex items-center justify-center z-50 animate-fadeIn"
+      style={{ backgroundColor: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)' }} onClick={onClose}>
       <div className="animate-slideUp" onClick={e => e.stopPropagation()}>{children}</div>
     </div>
   );
 }
 
-/* ── Profile Modal ───────────────────────────────────────── */
+/* -- Profile Modal ------------------------------------------------ */
 function ProfileModal({ user, onClose }: {
-  user: { username: string; email: string; avatar?: string } | null;
+  user: { username: string; displayName?: string; email: string; avatar?: string; isVerified?: boolean } | null;
   onClose: () => void;
 }) {
   if (!user) return null;
-  const initials = (user.username || 'U').slice(0, 2).toUpperCase();
+  const name = user.displayName || user.username;
+  const initials = name.slice(0, 2).toUpperCase();
   return (
     <ModalOverlay onClose={onClose}>
-      <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-2xl p-8 relative w-[90vw] max-w-sm text-center">
-        <button onClick={onClose} className="absolute top-3.5 right-3.5 w-8 h-8 rounded-full bg-[#111] border border-[#222] text-[#555] flex items-center justify-center hover:bg-[#1a1a1a] hover:text-white transition-all">
-          <X size={14} />
+      <div className="rounded-2xl p-6 relative w-[90vw] max-w-sm text-center" style={{ backgroundColor: 'var(--bg-panel)', border: '1px solid var(--bg-border)' }}>
+        <button onClick={onClose} className="absolute top-3 right-3 w-7 h-7 rounded-full flex items-center justify-center"
+          style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--bg-border)', color: 'var(--tx-dim)' }}>
+          <X size={13} />
         </button>
-        <div className="w-20 h-20 rounded-full bg-white flex items-center justify-center text-2xl font-bold text-black mx-auto mb-4 shadow-[0_0_40px_rgba(255,255,255,0.06)]">
-          {user.avatar || initials}
+        <div className="w-16 h-16 rounded-full flex items-center justify-center text-xl font-bold mx-auto mb-3"
+          style={{ background: 'var(--msg-me-bg)', color: 'var(--msg-me-text)' }}>
+          {initials}
         </div>
-        <h2 className="text-xl font-bold text-white mb-1">{user.username}</h2>
-        <p className="text-sm text-[#555] mb-5">{user.email}</p>
-        <div className="border-t border-[#1a1a1a] pt-3 flex flex-col gap-0">
-          <div className="flex justify-between items-center py-2.5 border-b border-[#111]">
-            <span className="text-xs text-[#444] font-medium uppercase tracking-wider">Статус</span>
-            <span className="text-sm text-white font-semibold flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-[#4ade80] inline-block" />онлайн
+        <div className="flex items-center justify-center gap-1.5 mb-0.5">
+          <h2 className="text-lg font-bold" style={{ color: 'var(--tx-primary)' }}>{name}</h2>
+          {user.isVerified && <VerifiedBadge size={16} />}
+        </div>
+        <p className="text-xs mb-4" style={{ color: 'var(--tx-muted)' }}>@{user.username}</p>
+        <div className="pt-3" style={{ borderTop: '1px solid var(--bg-border)' }}>
+          <div className="flex justify-between items-center py-2">
+            <span className="text-[11px] font-medium uppercase tracking-wider" style={{ color: 'var(--tx-dim)' }}>Status</span>
+            <span className="text-xs font-semibold flex items-center gap-1.5" style={{ color: 'var(--tx-primary)' }}>
+              <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ backgroundColor: 'var(--online)' }} />online
             </span>
           </div>
-          <div className="flex justify-between items-center py-2.5">
-            <span className="text-xs text-[#444] font-medium uppercase tracking-wider">ID</span>
-            <span className="text-xs font-mono text-[#666]">{user.username.toLowerCase().replace(/\s/g, '_')}</span>
+          <div className="flex justify-between items-center py-2">
+            <span className="text-[11px] font-medium uppercase tracking-wider" style={{ color: 'var(--tx-dim)' }}>Doppi ID</span>
+            <span className="text-xs font-mono" style={{ color: 'var(--tx-secondary)' }}>@{user.username}</span>
           </div>
         </div>
       </div>
@@ -55,120 +67,155 @@ function ProfileModal({ user, onClose }: {
   );
 }
 
-/* ── Shared user list item ───────────────────────────────── */
-function UserSelectRow({ user, selected, onToggle }: {
-  user: { _id: string; username: string; avatar?: string; isOnline: boolean };
-  selected: boolean;
-  onToggle: () => void;
-}) {
-  const initials = user.username.slice(0, 2).toUpperCase();
-  return (
-    <button onClick={onToggle}
-      className={`flex items-center gap-3 w-full px-3.5 py-2.5 rounded-xl transition-all text-left ${selected ? 'bg-white/[0.05] border border-white/10' : 'hover:bg-white/[0.03] border border-transparent'}`}>
-      <div className="relative w-9 h-9 rounded-full bg-[#222] flex items-center justify-center text-sm font-bold text-white flex-shrink-0">
-        {user.avatar && user.avatar !== '👤' ? user.avatar : initials}
-        <span className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-[#0a0a0a] ${user.isOnline ? 'bg-[#4ade80]' : 'bg-[#333]'}`} />
-      </div>
-      <span className="flex-1 text-sm text-[#ccc] font-medium truncate">{user.username}</span>
-      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${selected ? 'bg-white border-white' : 'border-[#333]'}`}>
-        {selected && <Check size={11} className="text-black" />}
-      </div>
-    </button>
-  );
-}
-
-/* ── Create Group Modal ──────────────────────────────────── */
+/* -- Create Group Modal (Doppi ID based) -------------------------- */
 function CreateGroupModal({ onClose, onCreate }: {
-  onClose: () => void;
-  onCreate: (name: string, participantIds: Id<'users'>[]) => Promise<void>;
+  onClose: () => void; onCreate: (name: string, participantIds: Id<'users'>[]) => Promise<void>;
 }) {
   const [name, setName] = useState('');
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [search, setSearch] = useState('');
+  const [doppId, setDoppId] = useState('');
+  const [members, setMembers] = useState<Array<{ _id: string; username: string; displayName?: string }>>([]);
+  const [lookupError, setLookupError] = useState('');
   const [loading, setLoading] = useState(false);
-  const allUsers = useQuery(api.users.getAllUsers) as Array<{ _id: string; username: string; avatar?: string; isOnline: boolean }> | undefined;
+  const [creating, setCreating] = useState(false);
+  const lookupResult = useQuery(api.users.lookupByUsername, doppId.trim().length >= 3 ? { username: doppId.trim() } : 'skip') as { _id: string; username: string; displayName?: string; isOnline: boolean; isVerified: boolean } | null | undefined;
   const nameRef = useRef<HTMLInputElement>(null);
   useEffect(() => { nameRef.current?.focus(); }, []);
 
-  const filtered = (allUsers ?? []).filter(u => u.username.toLowerCase().includes(search.toLowerCase()));
-  const toggle = (id: string) => setSelected(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
-  const handle = async () => { if (!name.trim() || selected.size === 0) return; setLoading(true); await onCreate(name.trim(), [...selected] as Id<'users'>[]); setLoading(false); };
-  const canCreate = name.trim().length > 0 && selected.size > 0;
+  const addMember = () => {
+    if (!lookupResult) { setLookupError('User not found'); return; }
+    if (members.some(m => m._id === lookupResult._id)) { setLookupError('Already added'); return; }
+    setMembers(prev => [...prev, { _id: lookupResult._id, username: lookupResult.username, displayName: lookupResult.displayName }]);
+    setDoppId('');
+    setLookupError('');
+  };
+  const removeMember = (id: string) => setMembers(prev => prev.filter(m => m._id !== id));
+  const handle = async () => { if (!name.trim() || members.length === 0) return; setCreating(true); await onCreate(name.trim(), members.map(m => m._id) as Id<'users'>[]); setCreating(false); };
+  const canCreate = name.trim().length > 0 && members.length > 0;
 
   return (
     <ModalOverlay onClose={onClose}>
-      <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-2xl p-6 relative w-[90vw] max-w-sm flex flex-col max-h-[85vh]">
-        <button onClick={onClose} className="absolute top-3.5 right-3.5 w-8 h-8 rounded-full bg-[#111] border border-[#222] text-[#555] flex items-center justify-center hover:bg-[#1a1a1a] hover:text-white transition-all"><X size={14} /></button>
-        <div className="w-12 h-12 rounded-2xl bg-white flex items-center justify-center text-black mx-auto mb-3"><UsersRound size={22} /></div>
-        <h2 className="text-[17px] font-bold text-white text-center mb-4">Создать группу</h2>
-        <input ref={nameRef} type="text" placeholder="Название группы..." value={name} onChange={e => setName(e.target.value)} maxLength={50}
-          className="w-full bg-[#111] border border-[#222] rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-[#333] outline-none mb-3 transition-all focus:border-[#444]" />
-        <div className="relative mb-2">
-          <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#333]" />
-          <input type="text" placeholder="Найти участников..." value={search} onChange={e => setSearch(e.target.value)}
-            className="w-full bg-[#111] border border-[#222] rounded-xl py-2 pl-8 pr-3 text-xs text-white placeholder-[#333] outline-none transition-all focus:border-[#444]" />
+      <div className="rounded-2xl p-5 relative w-[90vw] max-w-sm flex flex-col max-h-[85vh]" style={{ backgroundColor: 'var(--bg-panel)', border: '1px solid var(--bg-border)' }}>
+        <button onClick={onClose} className="absolute top-3 right-3 w-7 h-7 rounded-full flex items-center justify-center"
+          style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--bg-border)', color: 'var(--tx-dim)' }}><X size={13} /></button>
+        <h2 className="text-base font-bold mb-4" style={{ color: 'var(--tx-primary)' }}>Create Group</h2>
+        <input ref={nameRef} type="text" placeholder="Group name" value={name} onChange={e => setName(e.target.value)} maxLength={50}
+          className="w-full rounded-xl px-3 py-2.5 text-sm mb-3 themed-border themed-border-focus"
+          style={{ backgroundColor: 'var(--bg-input)', color: 'var(--tx-primary)' }} />
+        <div className="flex gap-2 mb-2">
+          <div className="relative flex-1">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs" style={{ color: 'var(--tx-dim)' }}>@</span>
+            <input type="text" placeholder="doppi_id" value={doppId} onChange={e => { setDoppId(e.target.value.replace(/\s/g, '').toLowerCase()); setLookupError(''); }}
+              className="w-full rounded-xl py-2 pl-7 pr-3 text-sm themed-border themed-border-focus"
+              style={{ backgroundColor: 'var(--bg-input)', color: 'var(--tx-primary)' }}
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addMember(); } }} />
+          </div>
+          <button onClick={addMember} disabled={!lookupResult || loading}
+            className="px-3 py-2 rounded-xl text-xs font-semibold transition-all"
+            style={lookupResult ? { backgroundColor: 'var(--accent)', color: 'var(--bg-base)' } : { backgroundColor: 'var(--bg-card)', color: 'var(--tx-dim)' }}>
+            Add
+          </button>
         </div>
-        {selected.size > 0 && <p className="text-xs text-white font-semibold mb-1.5 px-0.5">Выбрано: {selected.size}</p>}
-        <div className="flex-1 overflow-y-auto flex flex-col gap-0.5 min-h-0 mb-4">
-          {!allUsers ? <div className="flex justify-center py-4"><div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin" /></div>
-          : filtered.length === 0 ? <p className="text-center text-xs text-[#333] py-4">Нет пользователей</p>
-          : filtered.map(u => <UserSelectRow key={u._id} user={u} selected={selected.has(u._id)} onToggle={() => toggle(u._id)} />)}
-        </div>
-        <button onClick={handle} disabled={!canCreate || loading}
-          className={`flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 flex-shrink-0 ${canCreate && !loading ? 'bg-white text-black hover:bg-[#e8e8e8] active:scale-[0.98]' : 'bg-[#111] border border-[#222] text-[#333] cursor-not-allowed'}`}>
-          {loading ? <div className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" /> : <><Plus size={15} /> Создать группу</>}
+        {lookupError && <p className="text-[11px] mb-2" style={{ color: 'var(--danger)' }}>{lookupError}</p>}
+        {lookupResult && doppId.trim() && (
+          <div className="flex items-center gap-2 px-3 py-2 rounded-xl mb-2" style={{ backgroundColor: 'var(--bg-hover)', border: '1px solid var(--bg-border)' }}>
+            <div className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold"
+              style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--bg-border)', color: 'var(--tx-primary)' }}>
+              {(lookupResult.displayName || lookupResult.username).slice(0, 2).toUpperCase()}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-medium truncate" style={{ color: 'var(--tx-primary)' }}>{lookupResult.displayName || lookupResult.username}</p>
+              <p className="text-[10px]" style={{ color: 'var(--tx-muted)' }}>@{lookupResult.username}</p>
+            </div>
+            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: lookupResult.isOnline ? 'var(--online)' : 'var(--tx-dim)' }} />
+          </div>
+        )}
+        {members.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mb-3">
+            {members.map(m => (
+              <span key={m._id} className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium"
+                style={{ backgroundColor: 'var(--bg-active)', border: '1px solid var(--bg-border)', color: 'var(--tx-primary)' }}>
+                {m.displayName || m.username}
+                <button onClick={() => removeMember(m._id)} className="ml-0.5 opacity-60 hover:opacity-100"><X size={10} /></button>
+              </span>
+            ))}
+          </div>
+        )}
+        <button onClick={handle} disabled={!canCreate || creating}
+          className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl text-sm font-semibold transition-all"
+          style={canCreate && !creating ? { background: 'var(--msg-me-bg)', color: 'var(--msg-me-text)' } : { backgroundColor: 'var(--bg-card)', border: '1px solid var(--bg-border)', color: 'var(--tx-dim)', cursor: 'not-allowed' }}>
+          {creating ? <div className="w-4 h-4 border-2 rounded-full animate-spin" style={{ borderColor: 'transparent', borderTopColor: 'var(--msg-me-text)' }} /> : <><Plus size={15} /> Create Group</>}
         </button>
       </div>
     </ModalOverlay>
   );
 }
 
-/* ── New Direct Chat Modal ────────────────────────────────── */
+/* -- New Direct Chat Modal (Doppi ID lookup) ---------------------- */
 function NewChatModal({ onClose, onCreate }: {
-  onClose: () => void;
-  onCreate: (userId: Id<'users'>, username: string) => Promise<void>;
+  onClose: () => void; onCreate: (userId: Id<'users'>, username: string) => Promise<void>;
 }) {
-  const [search, setSearch] = useState('');
-  const [loading, setLoading] = useState<string | null>(null);
-  const allUsers = useQuery(api.users.getAllUsers) as Array<{ _id: string; username: string; avatar?: string; isOnline: boolean }> | undefined;
-  const filtered = (allUsers ?? []).filter(u => u.username.toLowerCase().includes(search.toLowerCase()));
-  const handleSelect = async (u: { _id: string; username: string }) => { setLoading(u._id); await onCreate(u._id as Id<'users'>, u.username); setLoading(null); };
+  const [doppId, setDoppId] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const lookupResult = useQuery(api.users.lookupByUsername, doppId.trim().length >= 3 ? { username: doppId.trim() } : 'skip') as { _id: string; username: string; displayName?: string; avatar?: string; isOnline: boolean; isVerified: boolean; statusText?: string } | null | undefined;
+
+  const handleStart = async () => {
+    if (!lookupResult) { setError('User not found'); return; }
+    setLoading(true);
+    await onCreate(lookupResult._id as Id<'users'>, lookupResult.displayName || lookupResult.username);
+    setLoading(false);
+  };
 
   return (
     <ModalOverlay onClose={onClose}>
-      <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-2xl p-6 relative w-[90vw] max-w-sm flex flex-col max-h-[80vh]">
-        <button onClick={onClose} className="absolute top-3.5 right-3.5 w-8 h-8 rounded-full bg-[#111] border border-[#222] text-[#555] flex items-center justify-center hover:bg-[#1a1a1a] hover:text-white transition-all"><X size={14} /></button>
-        <div className="w-12 h-12 rounded-2xl bg-white flex items-center justify-center text-black mx-auto mb-3"><MessageCircle size={22} /></div>
-        <h2 className="text-[17px] font-bold text-white text-center mb-4">Новый чат</h2>
+      <div className="rounded-2xl p-5 relative w-[90vw] max-w-sm" style={{ backgroundColor: 'var(--bg-panel)', border: '1px solid var(--bg-border)' }}>
+        <button onClick={onClose} className="absolute top-3 right-3 w-7 h-7 rounded-full flex items-center justify-center"
+          style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--bg-border)', color: 'var(--tx-dim)' }}><X size={13} /></button>
+        <h2 className="text-base font-bold mb-1" style={{ color: 'var(--tx-primary)' }}>New Chat</h2>
+        <p className="text-xs mb-4" style={{ color: 'var(--tx-muted)' }}>Enter a Doppi ID to start a conversation</p>
         <div className="relative mb-3">
-          <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#333]" />
-          <input type="text" placeholder="Найти пользователя..." value={search} onChange={e => setSearch(e.target.value)} autoFocus
-            className="w-full bg-[#111] border border-[#222] rounded-xl py-2.5 pl-8 pr-3 text-sm text-white placeholder-[#333] outline-none transition-all focus:border-[#444]" />
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-medium" style={{ color: 'var(--tx-dim)' }}>@</span>
+          <input type="text" placeholder="doppi_id" value={doppId}
+            onChange={e => { setDoppId(e.target.value.replace(/\s/g, '').toLowerCase()); setError(''); }}
+            autoFocus
+            className="w-full rounded-xl py-2.5 pl-8 pr-3 text-sm themed-border themed-border-focus"
+            style={{ backgroundColor: 'var(--bg-input)', color: 'var(--tx-primary)' }}
+            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleStart(); } }} />
         </div>
-        <div className="flex-1 overflow-y-auto flex flex-col gap-0.5 min-h-0">
-          {!allUsers ? <div className="flex justify-center py-4"><div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin" /></div>
-          : filtered.length === 0 ? <p className="text-center text-xs text-[#333] py-4">Нет пользователей</p>
-          : filtered.map(u => (
-            <button key={u._id} onClick={() => handleSelect(u)} disabled={loading === u._id}
-              className="flex items-center gap-3 w-full px-3.5 py-2.5 rounded-xl hover:bg-white/[0.03] transition-all text-left border border-transparent hover:border-[#1a1a1a]">
-              <div className="relative w-9 h-9 rounded-full bg-[#222] flex items-center justify-center text-sm font-bold text-white flex-shrink-0">
-                {u.avatar && u.avatar !== '👤' ? u.avatar : u.username.slice(0, 2).toUpperCase()}
-                <span className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-[#0a0a0a] ${u.isOnline ? 'bg-[#4ade80]' : 'bg-[#333]'}`} />
+        {error && <p className="text-[11px] mb-2" style={{ color: 'var(--danger)' }}>{error}</p>}
+        {lookupResult && doppId.trim() && (
+          <div className="flex items-center gap-3 px-3 py-3 rounded-xl mb-3" style={{ backgroundColor: 'var(--bg-hover)', border: '1px solid var(--bg-border)' }}>
+            <div className="relative w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0"
+              style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--bg-border)', color: 'var(--tx-primary)' }}>
+              {(lookupResult.displayName || lookupResult.username).slice(0, 2).toUpperCase()}
+              <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full" style={{ border: '2px solid var(--bg-panel)', backgroundColor: lookupResult.isOnline ? 'var(--online)' : 'var(--tx-dim)' }} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1">
+                <span className="text-sm font-semibold truncate" style={{ color: 'var(--tx-primary)' }}>{lookupResult.displayName || lookupResult.username}</span>
+                {lookupResult.isVerified && <VerifiedBadge size={13} />}
               </div>
-              <span className="flex-1 text-sm text-[#ccc] font-medium truncate">{u.username}</span>
-              {loading === u._id ? <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" /> : <MessageCircle size={15} className="text-[#333]" />}
-            </button>
-          ))}
-        </div>
+              <p className="text-[11px]" style={{ color: 'var(--tx-muted)' }}>@{lookupResult.username}</p>
+            </div>
+          </div>
+        )}
+        {lookupResult === null && doppId.trim().length >= 3 && (
+          <p className="text-xs text-center py-3" style={{ color: 'var(--tx-dim)' }}>No user found with this Doppi ID</p>
+        )}
+        <button onClick={handleStart} disabled={!lookupResult || loading}
+          className="w-full py-2.5 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2"
+          style={lookupResult ? { background: 'var(--msg-me-bg)', color: 'var(--msg-me-text)' } : { backgroundColor: 'var(--bg-card)', border: '1px solid var(--bg-border)', color: 'var(--tx-dim)', cursor: 'not-allowed' }}>
+          {loading ? <div className="w-4 h-4 border-2 rounded-full animate-spin" style={{ borderColor: 'transparent', borderTopColor: 'var(--msg-me-text)' }} /> : <><MessageCircle size={15} /> Start Chat</>}
+        </button>
       </div>
     </ModalOverlay>
   );
 }
 
-/* ── Main Page ───────────────────────────────────────────── */
+/* -- Main Page ---------------------------------------------------- */
 
 interface ConvexChatWithPreview {
-  _id: string; name: string; avatar?: string; isGroup: boolean; createdAt: number;
+  _id: string; name: string; avatar?: string; isGroup: boolean; isVerified?: boolean; createdAt: number;
   lastMessage: string | null; lastMessageType: string | null; lastMessageTime: number | null; unreadCount: number;
 }
 
@@ -178,6 +225,7 @@ interface ConvexMsg {
 
 export function ChatListPage() {
   const { auth, logout, createChat } = useApp();
+  const { chatBackground } = useTheme();
   const navigate = useNavigate();
   const currentUserId = auth.user?.id as Id<'users'> | undefined;
 
@@ -199,7 +247,7 @@ export function ChatListPage() {
 
   const chatMessages = useQuery(api.users.getMessagesForChat, activeChatIdTyped && currentUserId ? { chatId: activeChatIdTyped, limit: 100 } : 'skip') as ConvexMsg[] | undefined;
   const typingUsers = useQuery(api.users.getTypingUsers, activeChatIdTyped && currentUserId ? { chatId: activeChatIdTyped, currentUserId } : 'skip') as string[] | undefined;
-  const participantsStatus = useQuery(api.users.getChatParticipantsStatus, activeChatIdTyped && currentUserId ? { chatId: activeChatIdTyped, currentUserId } : 'skip') as Array<{ _id: string; username: string; isOnline: boolean; lastSeen: number }> | undefined;
+  const participantsStatus = useQuery(api.users.getChatParticipantsStatus, activeChatIdTyped && currentUserId ? { chatId: activeChatIdTyped, currentUserId } : 'skip') as Array<{ _id: string; username: string; displayName?: string; isOnline: boolean; lastSeen: number; isVerified: boolean }> | undefined;
 
   const sendMessageMut = useMutation(api.users.sendMessage);
   const markAsReadMut = useMutation(api.users.markMessagesAsRead);
@@ -212,7 +260,6 @@ export function ChatListPage() {
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [chatMessages?.length]);
 
-  // Play notification sound on new incoming messages
   useEffect(() => {
     if (!chatMessages) return;
     const count = chatMessages.length;
@@ -258,136 +305,174 @@ export function ChatListPage() {
     if (!ts) return '';
     const diff = Date.now() - ts;
     const h = Math.floor(diff / 3600000), d = Math.floor(diff / 86400000);
-    if (h < 1) return `${Math.max(1, Math.floor(diff / 60000))}м`;
-    if (h < 24) return `${h}ч`;
-    if (d < 7) return `${d}д`;
-    return new Date(ts).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+    if (h < 1) return `${Math.max(1, Math.floor(diff / 60000))}m`;
+    if (h < 24) return `${h}h`;
+    if (d < 7) return `${d}d`;
+    return new Date(ts).toLocaleDateString('en-US', { day: 'numeric', month: 'short' });
   };
 
-  const fmtMsgTime = (ts: number) => new Date(ts).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+  const fmtMsgTime = (ts: number) => new Date(ts).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
 
   const fmtDate = (ts: number) => {
     const days = Math.floor((Date.now() - ts) / 86400000);
-    if (days === 0) return 'Сегодня';
-    if (days === 1) return 'Вчера';
-    if (days < 7) return `${days} дн. назад`;
-    return new Date(ts).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
+    if (days === 0) return 'Today';
+    if (days === 1) return 'Yesterday';
+    if (days < 7) return `${days} days ago`;
+    return new Date(ts).toLocaleDateString('en-US', { day: 'numeric', month: 'long' });
   };
 
   const getLastMsgPreview = (chat: ConvexChatWithPreview): string => {
-    if (!chat.lastMessage) return 'Нет сообщений';
+    if (!chat.lastMessage) return 'No messages';
     const t = chat.lastMessageType ?? 'text';
-    if (t === 'image') return '📷 Фото';
-    if (t === 'video' || t === 'video_message') return '🎥 Видео';
+    if (t === 'image') return 'Photo';
+    if (t === 'video' || t === 'video_message') return 'Video';
     if (t === 'sticker') return `${chat.lastMessage}`;
     return chat.lastMessage;
   };
 
   const filteredChats = (convexChats ?? []).filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase()));
   const activeChatRaw = (convexChats ?? []).find(c => c._id === activeChatId);
-  // For 1-on-1 chats, show the OTHER user's name in the header
   const otherUser = activeChatRaw && !activeChatRaw.isGroup && participantsStatus && participantsStatus.length > 0 ? participantsStatus[0] : null;
-  const activeChat = activeChatRaw ? { ...activeChatRaw, name: otherUser ? otherUser.username : activeChatRaw.name } : undefined;
-  const initials = (auth.user?.username || 'U').slice(0, 2).toUpperCase();
-  const typingText = typingUsers && typingUsers.length > 0 ? (typingUsers.length === 1 ? `${typingUsers[0]} печатает...` : `${typingUsers.length} чел. печатают...`) : null;
+  const activeChat = activeChatRaw ? { ...activeChatRaw, name: otherUser ? ((otherUser as any).displayName || otherUser.username) : activeChatRaw.name, isVerified: otherUser ? otherUser.isVerified : false } : undefined;
+  const initials = (auth.user?.displayName || auth.user?.username || 'U').slice(0, 2).toUpperCase();
+  const typingNames = typingUsers ?? [];
 
   const fmtLastSeen = (ts: number): string => {
     const diff = Date.now() - ts;
     const mins = Math.floor(diff / 60000);
-    if (mins < 1) return 'только что';
-    if (mins < 60) return `был(а) ${mins} мин. назад`;
+    if (mins < 1) return 'just now';
+    if (mins < 60) return `last seen ${mins}m ago`;
     const hrs = Math.floor(mins / 60);
-    if (hrs < 24) return `был(а) ${hrs} ч. назад`;
+    if (hrs < 24) return `last seen ${hrs}h ago`;
     const days = Math.floor(hrs / 24);
-    if (days < 7) return `был(а) ${days} дн. назад`;
-    return `был(а) ${new Date(ts).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}`;
+    if (days < 7) return `last seen ${days}d ago`;
+    return `last seen ${new Date(ts).toLocaleDateString('en-US', { day: 'numeric', month: 'short' })}`;
   };
 
   const getOnlineStatus = (): { text: string; isOnline: boolean } => {
     if (!participantsStatus || participantsStatus.length === 0) return { text: '', isOnline: false };
     if (activeChat?.isGroup) {
       const onlineCount = participantsStatus.filter(p => p.isOnline).length;
-      return { text: `${participantsStatus.length + 1} уч., ${onlineCount} онлайн`, isOnline: onlineCount > 0 };
+      return { text: `${participantsStatus.length + 1} members, ${onlineCount} online`, isOnline: onlineCount > 0 };
     }
     const other = participantsStatus[0];
     if (!other) return { text: '', isOnline: false };
-    return other.isOnline ? { text: 'онлайн', isOnline: true } : { text: fmtLastSeen(other.lastSeen), isOnline: false };
+    return other.isOnline ? { text: 'online', isOnline: true } : { text: fmtLastSeen(other.lastSeen), isOnline: false };
   };
 
   const onlineStatus = getOnlineStatus();
 
-  const navBtn = "flex items-center gap-3 px-5 py-3 text-[#666] text-sm font-medium cursor-pointer transition-all duration-200 select-none hover:bg-white/[0.03] hover:text-white";
-
   return (
     <>
-      {showProfile && <ProfileModal user={auth.user} onClose={() => setShowProfile(false)} />}
+      {showProfile && <ProfileModal user={auth.user ? { ...auth.user, isVerified: auth.user.isVerified } : null} onClose={() => setShowProfile(false)} />}
       {showCreateGroup && <CreateGroupModal onClose={() => setShowCreateGroup(false)} onCreate={async (name, pids) => { const id = await createChat(name, true, pids); setShowCreateGroup(false); if (id) setActiveChatId(id); }} />}
       {showNewChat && <NewChatModal onClose={() => setShowNewChat(false)} onCreate={async (uid, uname) => { const id = await createChat(uname, false, [uid]); setShowNewChat(false); if (id) setActiveChatId(id); }} />}
 
-      <div className="flex h-screen w-screen overflow-hidden bg-black p-2.5 gap-2">
+      <div className="flex h-screen w-screen overflow-hidden p-2.5 gap-2" style={{ backgroundColor: 'var(--bg-base)' }}>
 
-        {/* ══ LEFT NAV ══ */}
-        <aside className="w-[220px] min-w-[220px] bg-[#0a0a0a] border border-[#151515] rounded-2xl flex flex-col overflow-hidden flex-shrink-0">
-          <div className="flex items-center gap-3 px-5 py-5 border-b border-[#151515] flex-shrink-0">
-            <div className="w-11 h-11 rounded-full bg-white flex items-center justify-center text-[15px] font-bold text-black flex-shrink-0">
-              {auth.user?.avatar || initials}
+        {/* LEFT NAV */}
+        <aside className="w-[220px] min-w-[220px] rounded-2xl flex flex-col overflow-hidden flex-shrink-0" style={{ backgroundColor: 'var(--bg-panel)', border: '1px solid var(--bg-border)' }}>
+          <div className="flex items-center gap-3 px-5 py-5 flex-shrink-0" style={{ borderBottom: '1px solid var(--bg-border)' }}>
+            <div className="w-11 h-11 rounded-full flex items-center justify-center text-[15px] font-bold flex-shrink-0"
+              style={{ background: 'var(--msg-me-bg)', color: 'var(--msg-me-text)' }}>
+              {initials}
             </div>
             <div className="flex flex-col gap-0.5 min-w-0">
-              <span className="text-[14px] font-bold text-white truncate">{auth.user?.username}</span>
-              <span className="flex items-center gap-1.5 text-[11px] text-[#4ade80] font-medium">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#4ade80] inline-block" />онлайн
+              <div className="flex items-center gap-1">
+                <span className="text-[14px] font-bold truncate" style={{ color: 'var(--tx-primary)' }}>{auth.user?.displayName || auth.user?.username}</span>
+                {auth.user?.isVerified && <VerifiedBadge size={14} />}
+              </div>
+              <span className="flex items-center gap-1.5 text-[11px] font-medium" style={{ color: 'var(--online)' }}>
+                <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ backgroundColor: 'var(--online)' }} />online
               </span>
             </div>
           </div>
           <nav className="flex-1 overflow-y-auto py-1.5 flex flex-col">
-            <button onClick={() => setShowProfile(true)} className={navBtn}><User size={17} /><span>Профиль</span></button>
-            <button onClick={() => setShowNewChat(true)} className={navBtn}><MessageCircle size={17} /><span>Новый чат</span></button>
-            <button onClick={() => setShowCreateGroup(true)} className={navBtn}><UsersRound size={17} /><span>Группа</span></button>
-            <div className="h-px bg-[#151515] mx-5 my-1" />
+            {[
+              { icon: <User size={17} />, label: 'Profile', onClick: () => setShowProfile(true) },
+              { icon: <MessageCircle size={17} />, label: 'New Chat', onClick: () => setShowNewChat(true) },
+              { icon: <UsersRound size={17} />, label: 'Group', onClick: () => setShowCreateGroup(true) },
+            ].map((item, i) => (
+              <button key={i} onClick={item.onClick}
+                className="flex items-center gap-3 px-5 py-3 text-sm font-medium transition-all duration-200 select-none"
+                style={{ color: 'var(--tx-secondary)' }}
+                onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'var(--bg-hover)'; e.currentTarget.style.color = 'var(--tx-primary)'; }}
+                onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--tx-secondary)'; }}>
+                {item.icon}<span>{item.label}</span>
+              </button>
+            ))}
+            <div className="h-px mx-5 my-1" style={{ backgroundColor: 'var(--bg-border)' }} />
             {auth.user?.isAdmin && (
-              <button onClick={() => navigate('/vpp')} className={`${navBtn} text-[#888]`}><Shield size={17} /><span>Админ</span></button>
+              <button onClick={() => navigate('/vpp')}
+                className="flex items-center gap-3 px-5 py-3 text-sm font-medium transition-all duration-200 select-none"
+                style={{ color: 'var(--accent-secondary)' }}
+                onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'var(--bg-hover)'; }}
+                onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; }}>
+                <Shield size={17} /><span>Admin</span>
+              </button>
             )}
+            <button onClick={() => navigate('/settings')}
+              className="flex items-center gap-3 px-5 py-3 text-sm font-medium transition-all duration-200 select-none"
+              style={{ color: 'var(--tx-secondary)' }}
+              onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'var(--bg-hover)'; e.currentTarget.style.color = 'var(--tx-primary)'; }}
+              onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--tx-secondary)'; }}>
+              <Settings size={17} /><span>Settings</span>
+            </button>
             <div className="flex-1" />
-            <button onClick={logout} className={`${navBtn} text-[#555] hover:text-[#ff6b6b]`}><LogOut size={17} /><span>Выйти</span></button>
+            <button onClick={logout}
+              className="flex items-center gap-3 px-5 py-3 text-sm font-medium transition-all duration-200 select-none"
+              style={{ color: 'var(--tx-muted)' }}
+              onMouseEnter={e => { e.currentTarget.style.color = 'var(--danger)'; e.currentTarget.style.backgroundColor = 'var(--bg-hover)'; }}
+              onMouseLeave={e => { e.currentTarget.style.color = 'var(--tx-muted)'; e.currentTarget.style.backgroundColor = 'transparent'; }}>
+              <LogOut size={17} /><span>Sign Out</span>
+            </button>
           </nav>
         </aside>
 
-        {/* ══ CENTER CHAT ══ */}
-        <main className="flex-1 bg-[#060606] border border-[#151515] rounded-2xl flex flex-col overflow-hidden min-w-0">
+        {/* CENTER CHAT */}
+        <main className="flex-1 rounded-2xl flex flex-col overflow-hidden min-w-0" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--bg-border)' }}>
           {!activeChatId ? (
             <div className="flex flex-col items-center justify-center h-full gap-3 text-center animate-fadeIn">
-              <div className="text-5xl opacity-[0.08] animate-float">💬</div>
-              <h2 className="text-lg font-bold text-[#333]">Выберите чат</h2>
-              <p className="text-sm text-[#222]">Выберите диалог, чтобы начать общение</p>
+              <div className="opacity-[0.15] animate-float"><MessageSquare size={48} style={{ color: 'var(--accent)' }} /></div>
+              <h2 className="text-lg font-bold" style={{ color: 'var(--tx-dim)' }}>Select a chat</h2>
+              <p className="text-sm" style={{ color: 'var(--tx-ghost)' }}>Choose a conversation to start messaging</p>
             </div>
           ) : (
             <>
               {/* Chat header */}
-              <div className="flex items-center gap-3 px-5 py-3 bg-[#080808] border-b border-[#151515] flex-shrink-0">
-                <div className="w-10 h-10 rounded-full bg-[#1a1a1a] flex items-center justify-center text-lg flex-shrink-0 border border-[#222]">
-                  {activeChat?.avatar || '💬'}
+              <div className="flex items-center gap-3 px-5 py-3 flex-shrink-0" style={{ backgroundColor: 'var(--bg-panel)', borderBottom: '1px solid var(--bg-border)' }}>
+                <div className="w-10 h-10 rounded-full flex items-center justify-center text-lg flex-shrink-0"
+                  style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--bg-border)' }}>
+                  {activeChat?.isGroup ? <Users size={18} style={{ color: 'var(--accent-secondary)' }} /> : <User size={18} style={{ color: 'var(--accent)' }} />}
                 </div>
                 <div className="flex flex-col gap-0.5 flex-1 min-w-0">
-                  <span className="text-[14px] font-bold text-white truncate">{activeChat?.name ?? '...'}</span>
-                  <span className={`text-[11px] font-medium truncate ${typingText ? 'text-white animate-pulse-soft' : onlineStatus.isOnline ? 'text-[#4ade80]' : 'text-[#555]'}`}>
-                    {typingText ?? onlineStatus.text}
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[14px] font-bold truncate" style={{ color: 'var(--tx-primary)' }}>{activeChat?.name ?? '...'}</span>
+                    {activeChat?.isVerified && <VerifiedBadge size={14} />}
+                  </div>
+                  <span className="text-[11px] font-medium truncate"
+                    style={{ color: typingNames.length > 0 ? 'var(--accent)' : onlineStatus.isOnline ? 'var(--online)' : 'var(--tx-muted)' }}>
+                    {typingNames.length > 0 ? <TypingIndicator names={typingNames} /> : onlineStatus.text}
                   </span>
                 </div>
-                <button onClick={() => navigate(`/chat/${activeChatId}`)} title="Полный экран"
-                  className="text-[#333] hover:text-white transition-colors p-1.5 rounded-lg hover:bg-white/[0.03]">
-                  <Plus size={16} />
+                <button onClick={() => navigate(`/chat/${activeChatId}`)} title="Fullscreen"
+                  className="p-1.5 rounded-lg transition-colors"
+                  style={{ color: 'var(--tx-dim)' }}
+                  onMouseEnter={e => { e.currentTarget.style.color = 'var(--tx-primary)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.color = 'var(--tx-dim)'; }}>
+                  <Maximize2 size={16} />
                 </button>
               </div>
 
               {/* Messages */}
-              <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-1 bg-[#060606]">
+              <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-1" style={{ backgroundColor: 'var(--bg-surface)', background: chatBackground || undefined, backgroundSize: 'cover', backgroundPosition: 'center' }}>
                 {!chatMessages ? (
-                  <div className="flex items-center justify-center h-full"><div className="w-6 h-6 border-2 border-white/10 border-t-white/60 rounded-full animate-spin" /></div>
+                  <div className="flex items-center justify-center h-full"><div className="w-6 h-6 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--bg-border)', borderTopColor: 'var(--accent)' }} /></div>
                 ) : chatMessages.length === 0 ? (
                   <div className="flex flex-col items-center justify-center h-full text-center">
-                    <div className="text-4xl opacity-[0.06] mb-3">💬</div>
-                    <p className="text-sm font-semibold text-[#333] mb-1">Нет сообщений</p>
-                    <p className="text-xs text-[#222]">Напишите первое!</p>
+                    <MessageSquare size={32} className="opacity-[0.08] mb-3" style={{ color: 'var(--accent)' }} />
+                    <p className="text-sm font-semibold" style={{ color: 'var(--tx-dim)' }}>No messages</p>
+                    <p className="text-xs" style={{ color: 'var(--tx-ghost)' }}>Write the first one!</p>
                   </div>
                 ) : (
                   <>
@@ -399,28 +484,30 @@ export function ChatListPage() {
                         <div key={msg._id}>
                           {showDate && (
                             <div className="flex justify-center my-3">
-                              <span className="bg-[#111] border border-[#1a1a1a] text-[#444] text-[10px] font-semibold px-3 py-1 rounded-full uppercase tracking-wider">{fmtDate(msg.createdAt)}</span>
+                              <span className="text-[10px] font-semibold px-3 py-1 rounded-full uppercase tracking-wider"
+                                style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--bg-border)', color: 'var(--tx-muted)' }}>{fmtDate(msg.createdAt)}</span>
                             </div>
                           )}
                           <div className={`w-full flex ${isMe ? 'justify-end' : 'justify-start'} my-0.5`}>
                             {type === 'sticker' ? (
                               <div className="flex flex-col items-end gap-0.5">
                                 <span className="text-4xl leading-none select-none">{msg.text}</span>
-                                <span className="text-[9px] text-[#333]">{fmtMsgTime(msg.createdAt)}</span>
+                                <span className="text-[9px]" style={{ color: 'var(--tx-dim)' }}>{fmtMsgTime(msg.createdAt)}</span>
                               </div>
                             ) : type === 'image' && msg.fileUrl ? (
-                              <img src={msg.fileUrl} alt="фото" className="max-w-[180px] rounded-xl cursor-pointer border border-[#1a1a1a]" onClick={() => window.open(msg.fileUrl, '_blank')} />
+                              <img src={msg.fileUrl} alt="photo" className="max-w-[180px] rounded-xl cursor-pointer" style={{ border: '1px solid var(--bg-border)' }} onClick={() => window.open(msg.fileUrl, '_blank')} />
                             ) : type === 'video' && msg.fileUrl ? (
                               <video src={msg.fileUrl} controls className="max-w-[180px] rounded-xl" />
                             ) : type === 'video_message' && msg.fileUrl ? (
-                              <video src={msg.fileUrl} controls playsInline className="w-24 h-24 rounded-full object-cover border-2 border-white/10" />
+                              <video src={msg.fileUrl} controls playsInline className="w-24 h-24 rounded-full object-cover" style={{ border: '2px solid var(--bg-border)' }} />
                             ) : (
                               <div className="max-w-[62%] animate-msgPop">
-                                <div className={`px-3.5 py-2.5 rounded-2xl ${isMe ? 'bg-white text-black rounded-br-[4px]' : 'bg-[#111] text-[#ccc] border border-[#1a1a1a] rounded-bl-[4px]'}`}>
+                                <div className={`px-3.5 py-2.5 rounded-2xl ${isMe ? 'msg-me rounded-br-[4px]' : 'rounded-bl-[4px]'}`}
+                                  style={!isMe ? { backgroundColor: 'var(--msg-other-bg)', border: '1px solid var(--msg-other-border)', color: 'var(--msg-other-text)' } : undefined}>
                                   <p className="text-[13.5px] leading-relaxed break-words whitespace-pre-wrap">{msg.text}</p>
                                   <div className="flex items-center gap-1 mt-1 justify-end">
-                                    <span className={`text-[10px] font-medium ${isMe ? 'text-black/40' : 'text-[#333]'}`}>{fmtMsgTime(msg.createdAt)}</span>
-                                    {isMe && (msg.isRead ? <CheckCheck size={12} className="text-black/50" /> : <Check size={12} className="text-black/30" />)}
+                                    <span className="text-[10px] font-medium" style={{ opacity: 0.5 }}>{fmtMsgTime(msg.createdAt)}</span>
+                                    {isMe && (msg.isRead ? <CheckCheck size={12} style={{ opacity: 0.6 }} /> : <Check size={12} style={{ opacity: 0.4 }} />)}
                                   </div>
                                 </div>
                               </div>
@@ -435,13 +522,15 @@ export function ChatListPage() {
               </div>
 
               {/* Input bar */}
-              <div className="flex items-end gap-2 px-4 py-3 bg-[#080808] border-t border-[#151515] flex-shrink-0">
-                <div className="flex-1 bg-[#111] rounded-2xl px-3.5 py-2.5 flex items-end border border-[#1a1a1a] focus-within:border-[#333] transition-all">
-                  <textarea ref={inputRef} placeholder="Сообщение..." value={messageText} onChange={handleInput} onKeyDown={handleKeyDown} rows={1}
-                    className="w-full bg-transparent resize-none max-h-[120px] text-sm leading-relaxed py-0.5 text-white placeholder-[#333] outline-none" />
+              <div className="flex items-end gap-2 px-4 py-3 flex-shrink-0" style={{ backgroundColor: 'var(--bg-panel)', borderTop: '1px solid var(--bg-border)' }}>
+                <div className="flex-1 rounded-2xl px-3.5 py-2.5 flex items-end themed-border themed-border-focus" style={{ backgroundColor: 'var(--bg-input)' }}>
+                  <textarea ref={inputRef} placeholder="Message..." value={messageText} onChange={handleInput} onKeyDown={handleKeyDown} rows={1}
+                    className="w-full bg-transparent resize-none max-h-[120px] text-sm leading-relaxed py-0.5 placeholder-current"
+                    style={{ color: 'var(--tx-primary)', ['--tw-placeholder-opacity' as string]: 1 }} />
                 </div>
                 <button onClick={handleSend} disabled={!messageText.trim()}
-                  className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition-all duration-200 ${messageText.trim() ? 'bg-white text-black hover:scale-105 active:scale-95' : 'bg-[#111] border border-[#1a1a1a] text-[#333] cursor-not-allowed'}`}>
+                  className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition-all duration-200"
+                  style={messageText.trim() ? { background: 'var(--msg-me-bg)', color: 'var(--msg-me-text)' } : { backgroundColor: 'var(--bg-card)', border: '1px solid var(--bg-border)', color: 'var(--tx-dim)', cursor: 'not-allowed' }}>
                   <Send size={16} />
                 </button>
               </div>
@@ -449,40 +538,58 @@ export function ChatListPage() {
           )}
         </main>
 
-        {/* ══ RIGHT CHAT LIST ══ */}
-        <section className="w-[280px] min-w-[250px] bg-[#0a0a0a] border border-[#151515] rounded-2xl flex flex-col overflow-hidden flex-shrink-0">
-          <div className="px-5 py-5 border-b border-[#151515] flex-shrink-0">
-            <span className="text-[17px] font-bold text-white tracking-tight">Сообщения</span>
+        {/* RIGHT CHAT LIST */}
+        <section className="w-[280px] min-w-[250px] rounded-2xl flex flex-col overflow-hidden flex-shrink-0" style={{ backgroundColor: 'var(--bg-panel)', border: '1px solid var(--bg-border)' }}>
+          <div className="px-5 py-5 flex-shrink-0" style={{ borderBottom: '1px solid var(--bg-border)' }}>
+            <span className="text-[17px] font-bold tracking-tight" style={{ color: 'var(--tx-primary)' }}>Messages</span>
           </div>
 
+          <StoryCircles />
+
           <div className="relative px-3 py-2 flex-shrink-0">
-            <Search size={14} className="absolute left-6 top-1/2 -translate-y-1/2 text-[#333] pointer-events-none" />
-            <input type="text" placeholder="Поиск..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-              className="w-full bg-[#111] border border-[#1a1a1a] rounded-xl py-2.5 pl-9 pr-3.5 text-[13px] text-white placeholder-[#333] outline-none transition-all focus:border-[#333]" />
+            <Search size={14} className="absolute left-6 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: 'var(--tx-dim)' }} />
+            <input type="text" placeholder="Search..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+              className="w-full rounded-xl py-2.5 pl-9 pr-3.5 text-[13px] transition-all themed-border themed-border-focus"
+              style={{ backgroundColor: 'var(--bg-input)', color: 'var(--tx-primary)' }} />
           </div>
 
           <div className="flex-1 overflow-y-auto">
             {!convexChats ? (
-              <div className="flex items-center justify-center py-10"><div className="w-5 h-5 border-2 border-white/10 border-t-white/60 rounded-full animate-spin" /></div>
+              <div className="flex items-center justify-center py-10"><div className="w-5 h-5 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--bg-border)', borderTopColor: 'var(--accent)' }} /></div>
             ) : filteredChats.length === 0 ? (
-              <div className="flex flex-col items-center justify-center gap-2.5 py-10 text-[#222] text-sm text-center">
-                <MessageCircle size={28} className="opacity-20" /><p>Нет чатов</p>
+              <div className="flex flex-col items-center justify-center gap-2.5 py-10 text-sm text-center" style={{ color: 'var(--tx-ghost)' }}>
+                <MessageCircle size={28} className="opacity-20" /><p>No chats</p>
               </div>
             ) : filteredChats.map(chat => (
               <div key={chat._id} onClick={() => setActiveChatId(chat._id)}
-                className={`relative flex items-center gap-3 px-3.5 py-3 cursor-pointer transition-all duration-150 after:absolute after:bottom-0 after:left-[58px] after:right-3.5 after:h-px after:bg-[#111] ${activeChatId === chat._id ? 'bg-white/[0.04] before:absolute before:left-0 before:top-0 before:bottom-0 before:w-[2px] before:bg-white' : 'hover:bg-white/[0.02]'}`}>
-                <div className="w-[42px] h-[42px] rounded-full bg-[#151515] border border-[#1a1a1a] flex items-center justify-center text-lg text-[#555] flex-shrink-0">
-                  {chat.avatar || (chat.isGroup ? <Users size={18} /> : <MessageCircle size={18} />)}
+                className="relative flex items-center gap-3 px-3.5 py-3 cursor-pointer transition-all duration-150"
+                style={{
+                  backgroundColor: activeChatId === chat._id ? 'var(--bg-active)' : 'transparent',
+                  borderLeft: activeChatId === chat._id ? '2px solid var(--accent)' : '2px solid transparent',
+                }}
+                onMouseEnter={e => { if (activeChatId !== chat._id) e.currentTarget.style.backgroundColor = 'var(--bg-hover)'; }}
+                onMouseLeave={e => { if (activeChatId !== chat._id) e.currentTarget.style.backgroundColor = 'transparent'; }}>
+                <div className="w-[42px] h-[42px] rounded-full flex items-center justify-center flex-shrink-0"
+                  style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--bg-border)' }}>
+                  {chat.isGroup ? <Users size={18} style={{ color: 'var(--accent-secondary)' }} /> : <User size={18} style={{ color: 'var(--accent)' }} />}
                 </div>
                 <div className="flex-1 min-w-0 flex flex-col gap-0.5">
                   <div className="flex justify-between items-center gap-1.5">
-                    <span className="text-[13.5px] font-semibold text-[#e0e0e0] truncate">{chat.name}</span>
-                    <span className="text-[10px] text-[#333] font-medium flex-shrink-0">{fmtListTime(chat.lastMessageTime)}</span>
+                    <div className="flex items-center gap-1 truncate">
+                      <span className="text-[13.5px] font-semibold truncate" style={{ color: 'var(--tx-primary)' }}>{chat.name}</span>
+                      {chat.isVerified && <VerifiedBadge size={12} />}
+                    </div>
+                    <span className="text-[10px] font-medium flex-shrink-0" style={{ color: 'var(--tx-dim)' }}>{fmtListTime(chat.lastMessageTime)}</span>
                   </div>
                   <div className="flex justify-between items-center gap-1.5">
-                    <span className="text-[12px] text-[#444] truncate">{getLastMsgPreview(chat)}</span>
+                    <span className="text-[12px] truncate flex items-center gap-1" style={{ color: 'var(--tx-muted)' }}>
+                      {chat.lastMessageType === 'image' && <Camera size={11} />}
+                      {(chat.lastMessageType === 'video' || chat.lastMessageType === 'video_message') && <Film size={11} />}
+                      {getLastMsgPreview(chat)}
+                    </span>
                     {chat.unreadCount > 0 && (
-                      <span className="bg-white text-black text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center flex-shrink-0">
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center flex-shrink-0"
+                        style={{ background: 'var(--msg-me-bg)', color: 'var(--msg-me-text)' }}>
                         {chat.unreadCount > 99 ? '99+' : chat.unreadCount}
                       </span>
                     )}

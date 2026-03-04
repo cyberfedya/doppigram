@@ -2,15 +2,19 @@ import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
 export default defineSchema({
-  // Пользователи
   users: defineTable({
-    uid: v.string(), // Уникальный ID пользователя
+    uid: v.string(),
     username: v.string(),
+    displayName: v.optional(v.string()),
     email: v.string(),
-    password: v.string(), // Хэш пароля
+    password: v.string(),
     avatar: v.optional(v.string()),
     avatarType: v.optional(v.union(v.literal("emoji"), v.literal("image"))),
     isAdmin: v.boolean(),
+    isVerified: v.optional(v.boolean()),
+    isBanned: v.optional(v.boolean()),
+    banReason: v.optional(v.string()),
+    statusText: v.optional(v.string()),
     isOnline: v.boolean(),
     lastSeen: v.number(),
     createdAt: v.number(),
@@ -18,17 +22,15 @@ export default defineSchema({
     .index("by_uid", ["uid"])
     .index("by_username", ["username"]),
 
-  // Чаты
   chats: defineTable({
     name: v.string(),
     isGroup: v.boolean(),
     avatar: v.optional(v.string()),
-    createdBy: v.string(), // userId
+    createdBy: v.string(),
     createdAt: v.number(),
   })
     .index("by_createdBy", ["createdBy"]),
 
-  // Участники чатов
   chatParticipants: defineTable({
     chatId: v.id("chats"),
     userId: v.id("users"),
@@ -38,7 +40,6 @@ export default defineSchema({
     .index("by_userId", ["userId"])
     .index("by_chatId_userId", ["chatId", "userId"]),
 
-  // Сообщения
   messages: defineTable({
     chatId: v.id("chats"),
     senderId: v.id("users"),
@@ -51,13 +52,15 @@ export default defineSchema({
       v.literal("video_message"),
     )),
     fileUrl: v.optional(v.string()),
+    replyToId: v.optional(v.id("messages")),
+    isPinned: v.optional(v.boolean()),
+    pinnedBy: v.optional(v.id("users")),
     isRead: v.boolean(),
     createdAt: v.number(),
   })
     .index("by_chatId", ["chatId"])
     .index("by_chatId_createdAt", ["chatId", "createdAt"]),
 
-  // Индикаторы печатания
   typingIndicators: defineTable({
     chatId: v.id("chats"),
     userId: v.id("users"),
@@ -67,7 +70,6 @@ export default defineSchema({
     .index("by_chatId", ["chatId"])
     .index("by_chatId_userId", ["chatId", "userId"]),
 
-  // Запросы в друзья
   friendRequests: defineTable({
     senderId: v.id("users"),
     receiverId: v.id("users"),
@@ -77,4 +79,33 @@ export default defineSchema({
     .index("by_senderId", ["senderId"])
     .index("by_receiverId", ["receiverId"])
     .index("by_senderId_receiverId", ["senderId", "receiverId"]),
+
+  stories: defineTable({
+    userId: v.id("users"),
+    mediaUrl: v.optional(v.string()),
+    mediaType: v.optional(v.union(v.literal("image"), v.literal("video"))),
+    text: v.optional(v.string()),
+    storageId: v.optional(v.string()),
+    createdAt: v.number(),
+    expiresAt: v.number(),
+  })
+    .index("by_userId", ["userId"])
+    .index("by_expiresAt", ["expiresAt"]),
+
+  storyViews: defineTable({
+    storyId: v.id("stories"),
+    viewerId: v.id("users"),
+    viewedAt: v.number(),
+  })
+    .index("by_storyId", ["storyId"])
+    .index("by_storyId_viewerId", ["storyId", "viewerId"]),
+
+  messageReactions: defineTable({
+    messageId: v.id("messages"),
+    userId: v.id("users"),
+    reaction: v.string(),
+    createdAt: v.number(),
+  })
+    .index("by_messageId", ["messageId"])
+    .index("by_messageId_userId", ["messageId", "userId"]),
 });
