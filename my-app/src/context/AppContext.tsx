@@ -40,16 +40,41 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setLocalLoading(false);
   }, []);
 
-  // Set online status on auth change
+  // Online/offline tracking with heartbeat
   useEffect(() => {
-    if (auth.user?.id) {
-      setUserOnlineMutation({ userId: auth.user.id as Id<'users'>, isOnline: true }).catch(() => {});
-      const handleUnload = () => {
-        navigator.sendBeacon?.('/api/offline');
-      };
-      window.addEventListener('beforeunload', handleUnload);
-      return () => window.removeEventListener('beforeunload', handleUnload);
-    }
+    if (!auth.user?.id) return;
+    const uid = auth.user.id as Id<'users'>;
+
+    // Set online on mount / login
+    setUserOnlineMutation({ userId: uid, isOnline: true }).catch(() => {});
+
+    // Heartbeat: keep lastSeen fresh every 30s so stale users can be detected
+    const heartbeat = setInterval(() => {
+      setUserOnlineMutation({ userId: uid, isOnline: true }).catch(() => {});
+    }, 30_000);
+
+    // Visibility change: offline when tab hidden, online when visible
+    const handleVisibility = () => {
+      if (document.visibilityState === 'hidden') {
+        setUserOnlineMutation({ userId: uid, isOnline: false }).catch(() => {});
+      } else {
+        setUserOnlineMutation({ userId: uid, isOnline: true }).catch(() => {});
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    // Best-effort offline on tab close
+    const handleUnload = () => {
+      setUserOnlineMutation({ userId: uid, isOnline: false }).catch(() => {});
+    };
+    window.addEventListener('beforeunload', handleUnload);
+
+    return () => {
+      clearInterval(heartbeat);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('beforeunload', handleUnload);
+      setUserOnlineMutation({ userId: uid, isOnline: false }).catch(() => {});
+    };
   }, [auth.user?.id, setUserOnlineMutation]);
 
   const login = useCallback(async (username: string, password: string): Promise<boolean> => {

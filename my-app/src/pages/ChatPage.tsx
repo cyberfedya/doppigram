@@ -39,6 +39,7 @@ export function ChatPage() {
   const messages = useQuery(api.users.getMessagesForChat, chatId ? { chatId, limit: 100 } : 'skip') as ConvexMessage[] | undefined;
   const chatInfo = useQuery(api.users.getChatById, chatId ? { chatId } : 'skip') as ConvexChat | null | undefined;
   const typingUsers = useQuery(api.users.getTypingUsers, chatId && currentUserId ? { chatId, currentUserId } : 'skip') as string[] | undefined;
+  const participantsStatus = useQuery(api.users.getChatParticipantsStatus, chatId && currentUserId ? { chatId, currentUserId } : 'skip') as Array<{ _id: string; username: string; isOnline: boolean; lastSeen: number }> | undefined;
 
   const sendMessageMut = useMutation(api.users.sendMessage);
   const markAsReadMut = useMutation(api.users.markMessagesAsRead);
@@ -193,6 +194,31 @@ export function ChatPage() {
   const chat = chatInfo ?? { name: 'Чат', avatar: '💬', isGroup: false };
   const typingText = typingUsers && typingUsers.length > 0 ? (typingUsers.length === 1 ? `${typingUsers[0]} печатает...` : `${typingUsers.length} человека печатают...`) : null;
 
+  const fmtLastSeen = (ts: number): string => {
+    const diff = Date.now() - ts;
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return 'только что';
+    if (mins < 60) return `был(а) ${mins} мин. назад`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `был(а) ${hrs} ч. назад`;
+    const days = Math.floor(hrs / 24);
+    if (days < 7) return `был(а) ${days} дн. назад`;
+    return `был(а) ${new Date(ts).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}`;
+  };
+
+  const getOnlineStatus = (): { text: string; isOnline: boolean } => {
+    if (!participantsStatus || participantsStatus.length === 0) return { text: '', isOnline: false };
+    if (chat.isGroup) {
+      const onlineCount = participantsStatus.filter(p => p.isOnline).length;
+      return { text: `${participantsStatus.length + 1} уч., ${onlineCount} онлайн`, isOnline: onlineCount > 0 };
+    }
+    const other = participantsStatus[0];
+    if (!other) return { text: '', isOnline: false };
+    return other.isOnline ? { text: 'онлайн', isOnline: true } : { text: fmtLastSeen(other.lastSeen), isOnline: false };
+  };
+
+  const onlineStatus = getOnlineStatus();
+
   return (
     <div className="flex flex-col h-screen bg-black text-white">
       {/* Header */}
@@ -205,8 +231,8 @@ export function ChatPage() {
         </div>
         <div className="flex-1 min-w-0">
           <div className="text-[14px] font-bold text-white truncate">{chat.name}</div>
-          <div className={`text-[11px] font-medium truncate ${typingText ? 'text-white animate-pulse-soft' : 'text-[#4ade80]'}`}>
-            {typingText ?? 'онлайн'}
+          <div className={`text-[11px] font-medium truncate ${typingText ? 'text-white animate-pulse-soft' : onlineStatus.isOnline ? 'text-[#4ade80]' : 'text-[#555]'}`}>
+            {typingText ?? onlineStatus.text}
           </div>
         </div>
       </div>
@@ -235,13 +261,17 @@ export function ChatPage() {
                       <span className="bg-[#111] border border-[#1a1a1a] text-[#444] text-[10px] font-semibold px-3 py-1 rounded-full uppercase tracking-wider">{fmtDate(msg.createdAt)}</span>
                     </div>
                   )}
-                  <div className={`flex ${isMe ? 'justify-end' : 'justify-start'} ${isSticker ? '' : 'max-w-[70%]'} ${isMe ? 'ml-auto' : 'mr-auto'}`}>
+                  <div className={`w-full flex ${isMe ? 'justify-end' : 'justify-start'}`}>
                     {isSticker ? (
                       <div className="flex flex-col items-end gap-0.5">
                         {renderMessageContent(msg, isMe)}
                         <span className="text-[9px] text-[#333] px-1">{fmtTime(msg.createdAt)}</span>
                       </div>
-                    ) : renderMessageContent(msg, isMe)}
+                    ) : (
+                      <div className="max-w-[70%]">
+                        {renderMessageContent(msg, isMe)}
+                      </div>
+                    )}
                   </div>
                 </div>
               );

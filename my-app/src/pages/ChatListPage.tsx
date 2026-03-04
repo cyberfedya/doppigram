@@ -399,32 +399,30 @@ export function ChatListPage() {
                               <span className="bg-[#111] border border-[#1a1a1a] text-[#444] text-[10px] font-semibold px-3 py-1 rounded-full uppercase tracking-wider">{fmtDate(msg.createdAt)}</span>
                             </div>
                           )}
-                          {type === 'sticker' ? (
-                            <div className={`flex ${isMe ? 'justify-end' : 'justify-start'} my-0.5`}>
+                          <div className={`w-full flex ${isMe ? 'justify-end' : 'justify-start'} my-0.5`}>
+                            {type === 'sticker' ? (
                               <div className="flex flex-col items-end gap-0.5">
                                 <span className="text-4xl leading-none select-none">{msg.text}</span>
                                 <span className="text-[9px] text-[#333]">{fmtMsgTime(msg.createdAt)}</span>
                               </div>
-                            </div>
-                          ) : type === 'image' && msg.fileUrl ? (
-                            <div className={`flex ${isMe ? 'justify-end' : 'justify-start'} my-0.5`}>
+                            ) : type === 'image' && msg.fileUrl ? (
                               <img src={msg.fileUrl} alt="фото" className="max-w-[180px] rounded-xl cursor-pointer border border-[#1a1a1a]" onClick={() => window.open(msg.fileUrl, '_blank')} />
-                            </div>
-                          ) : type === 'video' && msg.fileUrl ? (
-                            <div className={`flex ${isMe ? 'justify-end' : 'justify-start'} my-0.5`}><video src={msg.fileUrl} controls className="max-w-[180px] rounded-xl" /></div>
-                          ) : type === 'video_message' && msg.fileUrl ? (
-                            <div className={`flex ${isMe ? 'justify-end' : 'justify-start'} my-0.5`}><video src={msg.fileUrl} controls playsInline className="w-24 h-24 rounded-full object-cover border-2 border-white/10" /></div>
-                          ) : (
-                            <div className={`flex max-w-[62%] animate-msgPop ${isMe ? 'ml-auto' : 'mr-auto'}`}>
-                              <div className={`px-3.5 py-2.5 rounded-2xl ${isMe ? 'bg-white text-black rounded-br-[4px]' : 'bg-[#111] text-[#ccc] border border-[#1a1a1a] rounded-bl-[4px]'}`}>
-                                <p className="text-[13.5px] leading-relaxed break-words whitespace-pre-wrap">{msg.text}</p>
-                                <div className="flex items-center gap-1 mt-1 justify-end">
-                                  <span className={`text-[10px] font-medium ${isMe ? 'text-black/40' : 'text-[#333]'}`}>{fmtMsgTime(msg.createdAt)}</span>
-                                  {isMe && (msg.isRead ? <CheckCheck size={12} className="text-black/50" /> : <Check size={12} className="text-black/30" />)}
+                            ) : type === 'video' && msg.fileUrl ? (
+                              <video src={msg.fileUrl} controls className="max-w-[180px] rounded-xl" />
+                            ) : type === 'video_message' && msg.fileUrl ? (
+                              <video src={msg.fileUrl} controls playsInline className="w-24 h-24 rounded-full object-cover border-2 border-white/10" />
+                            ) : (
+                              <div className="max-w-[62%] animate-msgPop">
+                                <div className={`px-3.5 py-2.5 rounded-2xl ${isMe ? 'bg-white text-black rounded-br-[4px]' : 'bg-[#111] text-[#ccc] border border-[#1a1a1a] rounded-bl-[4px]'}`}>
+                                  <p className="text-[13.5px] leading-relaxed break-words whitespace-pre-wrap">{msg.text}</p>
+                                  <div className="flex items-center gap-1 mt-1 justify-end">
+                                    <span className={`text-[10px] font-medium ${isMe ? 'text-black/40' : 'text-[#333]'}`}>{fmtMsgTime(msg.createdAt)}</span>
+                                    {isMe && (msg.isRead ? <CheckCheck size={12} className="text-black/50" /> : <Check size={12} className="text-black/30" />)}
+                                  </div>
                                 </div>
                               </div>
-                            </div>
-                          )}
+                            )}
+                          </div>
                         </div>
                       );
                     })}
