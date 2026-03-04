@@ -140,262 +140,270 @@ export default function SettingsPage() {
   ];
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: 'var(--bg-base)' }}>
-      <header className="sticky top-0 z-40" style={{ backgroundColor: 'var(--bg-panel)', borderBottom: '1px solid var(--bg-border)' }}>
-        <div className="max-w-3xl mx-auto px-6 py-4 flex items-center gap-3">
-          <button onClick={() => navigate('/chats')} className="p-2 rounded-xl transition-all active:scale-95 themed-border" style={{ backgroundColor: 'var(--bg-card)' }}>
-            <ArrowLeft className="h-5 w-5" style={{ color: 'var(--tx-secondary)' }} />
+    <div className="min-h-screen flex flex-col" style={{ backgroundColor: 'var(--bg-base)' }}>
+      {/* Header */}
+      <header style={{ borderBottom: '1px solid var(--bg-border)', backgroundColor: 'var(--bg-panel)' }}>
+        <div className="max-w-4xl mx-auto px-6 h-14 flex items-center gap-4">
+          <button onClick={() => navigate('/chats')}
+            className="flex items-center justify-center w-8 h-8 rounded-lg transition-colors"
+            style={{ border: '1px solid var(--bg-border)', backgroundColor: 'var(--bg-card)' }}
+            onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-hover)'}
+            onMouseLeave={e => e.currentTarget.style.backgroundColor = 'var(--bg-card)'}>
+            <ArrowLeft size={15} style={{ color: 'var(--tx-secondary)' }} />
           </button>
-          <div>
-            <h1 className="text-lg font-bold" style={{ color: 'var(--tx-primary)' }}>Settings</h1>
-            <p className="text-[11px] font-medium" style={{ color: 'var(--tx-muted)' }}>Customize your experience</p>
-          </div>
+          <span className="text-[14px] font-semibold" style={{ color: 'var(--tx-primary)' }}>Settings</span>
         </div>
       </header>
 
-      <main className="max-w-3xl mx-auto px-6 py-8 animate-fadeInUp">
-        {/* Section tabs */}
-        <div className="flex gap-2 mb-8">
-          {sections.map(s => (
-            <button key={s.id} onClick={() => setActiveSection(s.id)}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all"
-              style={activeSection === s.id
-                ? { backgroundColor: 'var(--accent)', color: 'var(--msg-me-text)' }
-                : { backgroundColor: 'var(--bg-card)', border: '1px solid var(--bg-border)', color: 'var(--tx-secondary)' }}>
-              {s.icon} {s.label}
-            </button>
-          ))}
-        </div>
+      {/* Body */}
+      <div className="max-w-4xl mx-auto w-full px-6 py-8 flex gap-7">
+        {/* Sidebar nav */}
+        <aside className="w-[170px] flex-shrink-0">
+          <nav className="flex flex-col gap-0.5">
+            {sections.map(s => (
+              <button key={s.id} onClick={() => setActiveSection(s.id)}
+                className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-[13px] font-medium transition-colors text-left w-full"
+                style={activeSection === s.id
+                  ? { backgroundColor: 'var(--bg-active)', color: 'var(--tx-primary)' }
+                  : { color: 'var(--tx-secondary)' }}
+                onMouseEnter={e => { if (activeSection !== s.id) { e.currentTarget.style.backgroundColor = 'var(--bg-hover)'; e.currentTarget.style.color = 'var(--tx-primary)'; } }}
+                onMouseLeave={e => { if (activeSection !== s.id) { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--tx-secondary)'; } }}>
+                <span style={{ opacity: 0.6 }}>{s.icon}</span>
+                {s.label}
+              </button>
+            ))}
+          </nav>
+        </aside>
 
-        {/* Appearance Section */}
-        {activeSection === 'appearance' && (
-          <div className="space-y-6">
-            {/* Theme toggle */}
-            <div className="rounded-2xl p-6 themed-border" style={{ backgroundColor: 'var(--bg-panel)' }}>
-              <h3 className="text-sm font-bold mb-4 uppercase tracking-wider" style={{ color: 'var(--tx-muted)' }}>Theme</h3>
-              <div className="flex gap-3">
-                <button onClick={() => { if (theme !== 'dark') toggleTheme(); }}
-                  className="flex-1 flex items-center gap-3 p-4 rounded-xl transition-all"
-                  style={theme === 'dark'
-                    ? { backgroundColor: 'var(--bg-active)', border: '2px solid var(--accent)' }
-                    : { backgroundColor: 'var(--bg-card)', border: '2px solid var(--bg-border)' }}>
-                  <Moon size={20} style={{ color: theme === 'dark' ? 'var(--accent)' : 'var(--tx-dim)' }} />
-                  <div className="text-left">
-                    <p className="text-sm font-semibold" style={{ color: 'var(--tx-primary)' }}>Dark</p>
-                    <p className="text-[11px]" style={{ color: 'var(--tx-muted)' }}>Black background</p>
-                  </div>
-                  {theme === 'dark' && <Check size={16} className="ml-auto" style={{ color: 'var(--accent)' }} />}
-                </button>
-                <button onClick={() => { if (theme !== 'light') toggleTheme(); }}
-                  className="flex-1 flex items-center gap-3 p-4 rounded-xl transition-all"
-                  style={theme === 'light'
-                    ? { backgroundColor: 'var(--bg-active)', border: '2px solid var(--accent)' }
-                    : { backgroundColor: 'var(--bg-card)', border: '2px solid var(--bg-border)' }}>
-                  <Sun size={20} style={{ color: theme === 'light' ? 'var(--accent)' : 'var(--tx-dim)' }} />
-                  <div className="text-left">
-                    <p className="text-sm font-semibold" style={{ color: 'var(--tx-primary)' }}>Light</p>
-                    <p className="text-[11px]" style={{ color: 'var(--tx-muted)' }}>White background</p>
-                  </div>
-                  {theme === 'light' && <Check size={16} className="ml-auto" style={{ color: 'var(--accent)' }} />}
-                </button>
-              </div>
-            </div>
+        {/* Content */}
+        <main className="flex-1 min-w-0 animate-fadeIn">
 
-            {/* Accent color */}
-            <div className="rounded-2xl p-6 themed-border" style={{ backgroundColor: 'var(--bg-panel)' }}>
-              <h3 className="text-sm font-bold mb-4 uppercase tracking-wider" style={{ color: 'var(--tx-muted)' }}>Accent Color</h3>
-              <div className="grid grid-cols-4 gap-3 mb-4">
-                {ACCENT_COLORS.map(c => (
-                  <button key={c.color} onClick={() => setAccentColor(c.color)}
-                    className="flex flex-col items-center gap-2 p-3 rounded-xl transition-all"
-                    style={accentColor === c.color
-                      ? { backgroundColor: 'var(--bg-active)', border: '2px solid var(--accent)' }
-                      : { backgroundColor: 'var(--bg-card)', border: '2px solid var(--bg-border)' }}>
-                    <div className="w-8 h-8 rounded-full flex items-center justify-center"
-                      style={{ backgroundColor: c.color === '#ffffff' ? (theme === 'dark' ? '#ffffff' : '#000000') : c.color }}>
-                      {accentColor === c.color && <Check size={14} style={{ color: c.color === '#ffffff' ? (theme === 'dark' ? '#000000' : '#ffffff') : '#ffffff' }} />}
-                    </div>
-                    <span className="text-[10px] font-medium" style={{ color: 'var(--tx-muted)' }}>{c.label}</span>
-                  </button>
-                ))}
-              </div>
-              <div className="flex gap-2">
-                <input type="text" value={customHex} onChange={e => setCustomHex(e.target.value)}
-                  placeholder="#ff6600" maxLength={7}
-                  className="flex-1 px-3 py-2.5 rounded-xl text-sm themed-border themed-border-focus"
-                  style={{ backgroundColor: 'var(--bg-input)', color: 'var(--tx-primary)' }} />
-                <button onClick={handleCustomHex}
-                  className="px-4 py-2.5 rounded-xl text-sm font-semibold transition-all"
-                  style={{ backgroundColor: 'var(--accent)', color: 'var(--msg-me-text)' }}>
-                  Apply
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Chat Background Section */}
-        {activeSection === 'chat' && (
-          <div className="space-y-6">
-            <div className="rounded-2xl p-6 themed-border" style={{ backgroundColor: 'var(--bg-panel)' }}>
-              <h3 className="text-sm font-bold mb-4 uppercase tracking-wider" style={{ color: 'var(--tx-muted)' }}>Background Presets</h3>
-              <div className="grid grid-cols-3 gap-3 mb-4">
-                {BG_PRESETS.map(bg => (
-                  <button key={bg.label} onClick={() => setChatBackground(bg.value)}
-                    className="relative h-24 rounded-xl transition-all overflow-hidden"
-                    style={{
-                      background: bg.value || 'var(--bg-surface)',
-                      border: chatBackground === bg.value ? '2px solid var(--accent)' : '2px solid var(--bg-border)',
-                    }}>
-                    <span className="absolute bottom-1.5 left-1.5 text-[10px] font-semibold px-2 py-0.5 rounded-full"
-                      style={{ backgroundColor: 'rgba(0,0,0,0.6)', color: '#fff' }}>{bg.label}</span>
-                    {chatBackground === bg.value && (
-                      <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full flex items-center justify-center" style={{ backgroundColor: 'var(--accent)' }}>
-                        <Check size={12} style={{ color: 'var(--msg-me-text)' }} />
-                      </div>
-                    )}
-                  </button>
-                ))}
-              </div>
-
-              <h3 className="text-sm font-bold mb-3 uppercase tracking-wider" style={{ color: 'var(--tx-muted)' }}>Custom Image</h3>
-              <div className="flex gap-2">
-                <button onClick={() => bgInputRef.current?.click()}
-                  className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold transition-all themed-border"
-                  style={{ backgroundColor: 'var(--bg-card)', color: 'var(--tx-secondary)' }}>
-                  <Upload size={16} /> Upload Image
-                </button>
-                {chatBackground && (
-                  <button onClick={() => setChatBackground('')}
-                    className="px-4 py-3 rounded-xl text-sm font-semibold transition-all themed-border"
-                    style={{ backgroundColor: 'var(--bg-card)', color: 'var(--danger)' }}>
-                    <Trash2 size={16} />
-                  </button>
-                )}
-              </div>
-              <input ref={bgInputRef} type="file" accept="image/*" className="hidden"
-                onChange={e => { const f = e.target.files?.[0]; if (f) handleBgUpload(f); e.target.value = ''; }} />
-
-              {/* Preview */}
-              {chatBackground && (
-                <div className="mt-4">
-                  <p className="text-[10px] font-semibold mb-2 uppercase tracking-wider" style={{ color: 'var(--tx-dim)' }}>Preview</p>
-                  <div className="h-40 rounded-xl overflow-hidden flex items-end p-3 gap-2"
-                    style={{ background: chatBackground, backgroundSize: 'cover', backgroundPosition: 'center', border: '1px solid var(--bg-border)' }}>
-                    <div className="px-3 py-2 rounded-2xl rounded-bl-[4px] text-xs"
-                      style={{ backgroundColor: 'var(--msg-other-bg)', border: '1px solid var(--msg-other-border)', color: 'var(--msg-other-text)' }}>
-                      Hello there!
-                    </div>
-                    <div className="px-3 py-2 rounded-2xl rounded-br-[4px] text-xs msg-me ml-auto">
-                      Hi! How are you?
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Profile Section */}
-        {activeSection === 'profile' && (
-          <div className="space-y-6">
-            <div className="rounded-2xl p-6 themed-border" style={{ backgroundColor: 'var(--bg-panel)' }}>
-              <div className="flex items-center gap-4 mb-6">
-                <div className="relative group">
-                  <div className="w-14 h-14 rounded-full flex items-center justify-center text-lg font-bold"
-                    style={{ backgroundColor: 'var(--accent)', color: 'var(--msg-me-text)' }}>
-                    {initials}
-                  </div>
-                  <label className="absolute inset-0 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                    style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-                    <Upload size={16} className="text-white" />
-                    <input type="file" accept="image/*" className="hidden"
-                      onChange={e => { const f = e.target.files?.[0]; if (f) handleAvatarUpload(f); e.target.value = ''; }} />
-                  </label>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-base font-bold truncate" style={{ color: 'var(--tx-primary)' }}>{auth.user?.displayName || auth.user?.username}</p>
-                  <div className="flex items-center gap-1.5">
-                    <p className="text-xs" style={{ color: 'var(--tx-muted)' }}>@{auth.user?.username}</p>
-                    <button onClick={copyDoppId} className="p-0.5 rounded transition-all" title="Copy Doppi ID">
-                      {copied ? <Check size={11} style={{ color: 'var(--online)' }} /> : <Copy size={11} style={{ color: 'var(--tx-dim)' }} />}
+          {/* Appearance */}
+          {activeSection === 'appearance' && (
+            <div className="space-y-5">
+              <section>
+                <p className="text-[11px] font-semibold uppercase tracking-wide mb-2" style={{ color: 'var(--tx-muted)' }}>Theme</p>
+                <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--bg-border)', backgroundColor: 'var(--bg-panel)' }}>
+                  {[
+                    { id: 'dark' as const, icon: <Moon size={15} />, label: 'Dark' },
+                    { id: 'light' as const, icon: <Sun size={15} />, label: 'Light' },
+                  ].map((t, i) => (
+                    <button key={t.id} onClick={() => { if (theme !== t.id) toggleTheme(); }}
+                      className="flex items-center gap-3 px-4 py-3.5 w-full text-left transition-colors"
+                      style={{ borderTop: i > 0 ? '1px solid var(--bg-border)' : 'none', backgroundColor: theme === t.id ? 'var(--bg-hover)' : 'transparent' }}
+                      onMouseEnter={e => { if (theme !== t.id) e.currentTarget.style.backgroundColor = 'var(--bg-hover)'; }}
+                      onMouseLeave={e => { if (theme !== t.id) e.currentTarget.style.backgroundColor = 'transparent'; }}>
+                      <span style={{ color: 'var(--tx-secondary)', opacity: 0.7 }}>{t.icon}</span>
+                      <span className="flex-1 text-[13px] font-medium" style={{ color: 'var(--tx-primary)' }}>{t.label}</span>
+                      {theme === t.id && <Check size={14} style={{ color: 'var(--accent)' }} />}
                     </button>
-                  </div>
+                  ))}
                 </div>
-              </div>
+              </section>
 
-              <div className="space-y-4">
-                {/* Display Name */}
-                <div>
-                  <label className="block text-[11px] font-semibold mb-1.5 uppercase tracking-wider" style={{ color: 'var(--tx-muted)' }}>Display Name</label>
+              <section>
+                <p className="text-[11px] font-semibold uppercase tracking-wide mb-2" style={{ color: 'var(--tx-muted)' }}>Accent Color</p>
+                <div className="rounded-xl p-4" style={{ border: '1px solid var(--bg-border)', backgroundColor: 'var(--bg-panel)' }}>
+                  <div className="grid grid-cols-4 gap-2 mb-4">
+                    {ACCENT_COLORS.map(c => (
+                      <button key={c.color} onClick={() => setAccentColor(c.color)}
+                        className="flex flex-col items-center gap-1.5 p-2.5 rounded-lg transition-colors"
+                        style={accentColor === c.color
+                          ? { backgroundColor: 'var(--bg-active)', border: '1px solid var(--accent)' }
+                          : { backgroundColor: 'var(--bg-card)', border: '1px solid var(--bg-border)' }}>
+                        <div className="w-5 h-5 rounded-full"
+                          style={{ backgroundColor: c.color === '#ffffff' ? (theme === 'dark' ? '#ffffff' : '#000000') : c.color }} />
+                        <span className="text-[10px] font-medium" style={{ color: 'var(--tx-muted)' }}>{c.label}</span>
+                      </button>
+                    ))}
+                  </div>
                   <div className="flex gap-2">
-                    <input type="text" value={newDisplayName} onChange={e => setNewDisplayName(e.target.value)}
-                      placeholder="Your name" maxLength={50}
-                      className="flex-1 px-3 py-2.5 rounded-xl text-sm themed-border themed-border-focus"
+                    <input type="text" value={customHex} onChange={e => setCustomHex(e.target.value)}
+                      placeholder="#ff6600" maxLength={7}
+                      className="flex-1 px-3 py-2 rounded-lg text-[13px] themed-border themed-border-focus"
                       style={{ backgroundColor: 'var(--bg-input)', color: 'var(--tx-primary)' }} />
-                    <button onClick={handleSaveDisplayName}
-                      className="px-3 py-2.5 rounded-xl text-sm font-semibold transition-all"
+                    <button onClick={handleCustomHex}
+                      className="px-4 py-2 rounded-lg text-[13px] font-semibold transition-colors"
                       style={{ backgroundColor: 'var(--accent)', color: 'var(--msg-me-text)' }}>
-                      {nameSaved ? <Check size={15} /> : 'Save'}
+                      Apply
                     </button>
                   </div>
                 </div>
+              </section>
+            </div>
+          )}
 
-                {/* Doppi ID */}
-                <div>
-                  <label className="block text-[11px] font-semibold mb-1.5 uppercase tracking-wider" style={{ color: 'var(--tx-muted)' }}>Doppi ID</label>
+          {/* Chat Background */}
+          {activeSection === 'chat' && (
+            <div className="space-y-5">
+              <section>
+                <p className="text-[11px] font-semibold uppercase tracking-wide mb-2" style={{ color: 'var(--tx-muted)' }}>Background Presets</p>
+                <div className="rounded-xl p-4" style={{ border: '1px solid var(--bg-border)', backgroundColor: 'var(--bg-panel)' }}>
+                  <div className="grid grid-cols-3 gap-2 mb-4">
+                    {BG_PRESETS.map(bg => (
+                      <button key={bg.label} onClick={() => setChatBackground(bg.value)}
+                        className="relative h-20 rounded-lg overflow-hidden"
+                        style={{
+                          background: bg.value || 'var(--bg-surface)',
+                          border: chatBackground === bg.value ? '2px solid var(--accent)' : '1px solid var(--bg-border)',
+                        }}>
+                        <span className="absolute bottom-1.5 left-2 text-[10px] font-medium px-1.5 py-0.5 rounded"
+                          style={{ backgroundColor: 'rgba(0,0,0,0.55)', color: '#fff' }}>{bg.label}</span>
+                        {chatBackground === bg.value && (
+                          <div className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full flex items-center justify-center" style={{ backgroundColor: 'var(--accent)' }}>
+                            <Check size={10} style={{ color: 'var(--msg-me-text)' }} />
+                          </div>
+                        )}
+                      </button>
+                    ))}
+                  </div>
                   <div className="flex gap-2">
-                    <div className="relative flex-1">
-                      <AtSign size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--tx-dim)' }} />
-                      <input type="text" value={newUsername} onChange={e => { setNewUsername(e.target.value.replace(/\s/g, '').toLowerCase()); setUsernameError(''); }}
-                        placeholder="doppi_id" maxLength={20}
-                        className="w-full pl-8 pr-3 py-2.5 rounded-xl text-sm themed-border themed-border-focus"
-                        style={{ backgroundColor: 'var(--bg-input)', color: 'var(--tx-primary)' }} />
+                    <button onClick={() => bgInputRef.current?.click()}
+                      className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-[13px] font-medium transition-colors themed-border"
+                      style={{ backgroundColor: 'var(--bg-card)', color: 'var(--tx-secondary)' }}
+                      onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-hover)'}
+                      onMouseLeave={e => e.currentTarget.style.backgroundColor = 'var(--bg-card)'}>
+                      <Upload size={14} /> Upload Image
+                    </button>
+                    {chatBackground && (
+                      <button onClick={() => setChatBackground('')}
+                        className="px-3 py-2.5 rounded-lg transition-colors themed-border"
+                        style={{ backgroundColor: 'var(--bg-card)', color: 'var(--danger)' }}
+                        onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-hover)'}
+                        onMouseLeave={e => e.currentTarget.style.backgroundColor = 'var(--bg-card)'}>
+                        <Trash2 size={14} />
+                      </button>
+                    )}
+                  </div>
+                  <input ref={bgInputRef} type="file" accept="image/*" className="hidden"
+                    onChange={e => { const f = e.target.files?.[0]; if (f) handleBgUpload(f); e.target.value = ''; }} />
+                  {chatBackground && (
+                    <div className="mt-4">
+                      <p className="text-[11px] font-medium mb-2" style={{ color: 'var(--tx-dim)' }}>Preview</p>
+                      <div className="h-36 rounded-lg overflow-hidden flex items-end p-3 gap-2"
+                        style={{ background: chatBackground, backgroundSize: 'cover', backgroundPosition: 'center', border: '1px solid var(--bg-border)' }}>
+                        <div className="px-3 py-1.5 rounded-xl rounded-bl-sm text-[12px]"
+                          style={{ backgroundColor: 'var(--msg-other-bg)', border: '1px solid var(--msg-other-border)', color: 'var(--msg-other-text)' }}>
+                          Hello there!
+                        </div>
+                        <div className="px-3 py-1.5 rounded-xl rounded-br-sm text-[12px] msg-me ml-auto">
+                          Hi! How are you?
+                        </div>
+                      </div>
                     </div>
-                    <button onClick={handleSaveUsername}
-                      className="px-3 py-2.5 rounded-xl text-sm font-semibold transition-all"
-                      style={{ backgroundColor: 'var(--accent)', color: 'var(--msg-me-text)' }}>
-                      {usernameSaved ? <Check size={15} /> : 'Save'}
-                    </button>
-                  </div>
-                  {usernameError && <p className="text-[11px] mt-1" style={{ color: 'var(--danger)' }}>{usernameError}</p>}
-                  <p className="text-[10px] mt-1" style={{ color: 'var(--tx-dim)' }}>3-20 chars, lowercase, numbers, underscores</p>
+                  )}
                 </div>
+              </section>
+            </div>
+          )}
 
-                {/* Status */}
-                <div>
-                  <label className="block text-[11px] font-semibold mb-1.5 uppercase tracking-wider" style={{ color: 'var(--tx-muted)' }}>Status</label>
-                  <div className="flex gap-2">
-                    <input type="text" value={statusText} onChange={e => setStatusText(e.target.value)}
-                      placeholder="What's on your mind?"
-                      className="flex-1 px-3 py-2.5 rounded-xl text-sm themed-border themed-border-focus"
-                      style={{ backgroundColor: 'var(--bg-input)', color: 'var(--tx-primary)' }}
-                      maxLength={100} />
-                    <button onClick={() => { if (auth.user?.id) updateStatusMut({ userId: auth.user.id as Id<'users'>, statusText }); }}
-                      className="px-3 py-2.5 rounded-xl text-sm font-semibold transition-all"
-                      style={{ backgroundColor: 'var(--accent)', color: 'var(--msg-me-text)' }}>
-                      Save
-                    </button>
+          {/* Profile */}
+          {activeSection === 'profile' && (
+            <div className="space-y-5">
+              <section>
+                <div className="rounded-xl p-5" style={{ border: '1px solid var(--bg-border)', backgroundColor: 'var(--bg-panel)' }}>
+                  <div className="flex items-center gap-4 pb-5 mb-5" style={{ borderBottom: '1px solid var(--bg-border)' }}>
+                    <div className="relative group flex-shrink-0">
+                      <div className="w-14 h-14 rounded-full flex items-center justify-center text-[17px] font-bold"
+                        style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--bg-border)', color: 'var(--tx-primary)' }}>
+                        {initials}
+                      </div>
+                      <label className="absolute inset-0 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                        style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+                        <Upload size={14} className="text-white" />
+                        <input type="file" accept="image/*" className="hidden"
+                          onChange={e => { const f = e.target.files?.[0]; if (f) handleAvatarUpload(f); e.target.value = ''; }} />
+                      </label>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[15px] font-semibold truncate" style={{ color: 'var(--tx-primary)' }}>{auth.user?.displayName || auth.user?.username}</p>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <p className="text-[12px]" style={{ color: 'var(--tx-muted)' }}>@{auth.user?.username}</p>
+                        <button onClick={copyDoppId}
+                          className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors"
+                          style={{ color: 'var(--tx-dim)', border: '1px solid var(--bg-border)', backgroundColor: 'var(--bg-card)' }}
+                          onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-hover)'}
+                          onMouseLeave={e => e.currentTarget.style.backgroundColor = 'var(--bg-card)'}>
+                          {copied ? <><Check size={9} /> Copied</> : <><Copy size={9} /> Copy</>}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-[12px] font-medium mb-1.5" style={{ color: 'var(--tx-muted)' }}>Display Name</label>
+                      <div className="flex gap-2">
+                        <input type="text" value={newDisplayName} onChange={e => setNewDisplayName(e.target.value)}
+                          placeholder="Your name" maxLength={50}
+                          className="flex-1 px-3 py-2 rounded-lg text-[13px] themed-border themed-border-focus"
+                          style={{ backgroundColor: 'var(--bg-input)', color: 'var(--tx-primary)' }} />
+                        <button onClick={handleSaveDisplayName}
+                          className="px-3 py-2 rounded-lg text-[13px] font-semibold transition-colors"
+                          style={{ backgroundColor: 'var(--accent)', color: 'var(--msg-me-text)' }}>
+                          {nameSaved ? <Check size={14} /> : 'Save'}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[12px] font-medium mb-1.5" style={{ color: 'var(--tx-muted)' }}>Doppi ID</label>
+                      <div className="flex gap-2">
+                        <div className="relative flex-1">
+                          <AtSign size={13} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--tx-dim)' }} />
+                          <input type="text" value={newUsername} onChange={e => { setNewUsername(e.target.value.replace(/\s/g, '').toLowerCase()); setUsernameError(''); }}
+                            placeholder="doppi_id" maxLength={20}
+                            className="w-full pl-8 pr-3 py-2 rounded-lg text-[13px] themed-border themed-border-focus"
+                            style={{ backgroundColor: 'var(--bg-input)', color: 'var(--tx-primary)' }} />
+                        </div>
+                        <button onClick={handleSaveUsername}
+                          className="px-3 py-2 rounded-lg text-[13px] font-semibold transition-colors"
+                          style={{ backgroundColor: 'var(--accent)', color: 'var(--msg-me-text)' }}>
+                          {usernameSaved ? <Check size={14} /> : 'Save'}
+                        </button>
+                      </div>
+                      {usernameError && <p className="text-[11px] mt-1" style={{ color: 'var(--danger)' }}>{usernameError}</p>}
+                      <p className="text-[11px] mt-1" style={{ color: 'var(--tx-dim)' }}>3-20 chars — lowercase, numbers, underscores</p>
+                    </div>
+
+                    <div>
+                      <label className="block text-[12px] font-medium mb-1.5" style={{ color: 'var(--tx-muted)' }}>Status</label>
+                      <div className="flex gap-2">
+                        <input type="text" value={statusText} onChange={e => setStatusText(e.target.value)}
+                          placeholder="What's on your mind?" maxLength={100}
+                          className="flex-1 px-3 py-2 rounded-lg text-[13px] themed-border themed-border-focus"
+                          style={{ backgroundColor: 'var(--bg-input)', color: 'var(--tx-primary)' }} />
+                        <button onClick={() => { if (auth.user?.id) updateStatusMut({ userId: auth.user.id as Id<'users'>, statusText }); }}
+                          className="px-3 py-2 rounded-lg text-[13px] font-semibold transition-colors"
+                          style={{ backgroundColor: 'var(--accent)', color: 'var(--msg-me-text)' }}>
+                          Save
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
+              </section>
 
-                <div className="flex gap-2">
-                  <div className="flex-1 flex justify-between items-center py-2.5 px-3 rounded-xl" style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--bg-border)' }}>
-                    <span className="text-[11px] font-medium uppercase tracking-wider" style={{ color: 'var(--tx-dim)' }}>Role</span>
-                    <span className="text-xs font-semibold" style={{ color: 'var(--tx-primary)' }}>{auth.user?.isAdmin ? 'Admin' : 'User'}</span>
+              <section>
+                <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--bg-border)', backgroundColor: 'var(--bg-panel)' }}>
+                  <div className="flex items-center justify-between px-4 py-3.5" style={{ borderBottom: '1px solid var(--bg-border)' }}>
+                    <span className="text-[13px]" style={{ color: 'var(--tx-secondary)' }}>Role</span>
+                    <span className="text-[13px] font-medium" style={{ color: 'var(--tx-primary)' }}>{auth.user?.isAdmin ? 'Admin' : 'User'}</span>
                   </div>
-                  <div className="flex-1 flex justify-between items-center py-2.5 px-3 rounded-xl" style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--bg-border)' }}>
-                    <span className="text-[11px] font-medium uppercase tracking-wider" style={{ color: 'var(--tx-dim)' }}>Device</span>
-                    <span className="text-xs font-semibold flex items-center gap-1" style={{ color: 'var(--tx-primary)' }}>
-                      <Monitor size={12} /> {navigator.userAgent.includes('Mac') ? 'macOS' : navigator.userAgent.includes('Win') ? 'Windows' : 'Linux'}
+                  <div className="flex items-center justify-between px-4 py-3.5">
+                    <span className="text-[13px]" style={{ color: 'var(--tx-secondary)' }}>Device</span>
+                    <span className="text-[13px] font-medium flex items-center gap-1.5" style={{ color: 'var(--tx-primary)' }}>
+                      <Monitor size={13} />
+                      {navigator.userAgent.includes('Mac') ? 'macOS' : navigator.userAgent.includes('Win') ? 'Windows' : 'Linux'}
                     </span>
                   </div>
                 </div>
-              </div>
+              </section>
             </div>
-          </div>
-        )}
-      </main>
+          )}
+
+        </main>
+      </div>
     </div>
   );
 }

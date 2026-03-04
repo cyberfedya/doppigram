@@ -72,6 +72,7 @@ export function ChatPage() {
   const [showStickers, setShowStickers] = useState(false);
   const [showAttach, setShowAttach] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
+  const [isVoiceRecording, setIsVoiceRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [reactionPickerMsgId, setReactionPickerMsgId] = useState<string | null>(null);
   const [showSearch, setShowSearch] = useState(false);
@@ -184,6 +185,37 @@ export function ChatPage() {
 
   const handleStopVideoMessage = () => { mediaRecorderRef.current?.stop(); };
 
+  const handleStartVoiceMessage = async () => {
+    if (!chatId || !currentUserId) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const chunks: Blob[] = [];
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4';
+      const recorder = new MediaRecorder(stream, { mimeType });
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+      recorder.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        clearInterval(recordingTimerRef.current);
+        setIsVoiceRecording(false); setRecordingTime(0); setIsUploading(true);
+        try {
+          const blob = new Blob(chunks, { type: chunks[0]?.type ?? mimeType });
+          const uploadUrl = await generateUploadUrl();
+          const resp = await fetch(uploadUrl, { method: 'POST', headers: { 'Content-Type': blob.type }, body: blob });
+          const { storageId } = await resp.json() as { storageId: string };
+          await sendMessageMut({ chatId, senderId: currentUserId, text: 'Voice message', messageType: 'voice', storageId: storageId as Id<'_storage'> });
+        } catch (err) { console.error('Voice upload error:', err); }
+        finally { setIsUploading(false); }
+      };
+      recorder.start();
+      mediaRecorderRef.current = recorder;
+      setIsVoiceRecording(true);
+      let t = 0;
+      recordingTimerRef.current = setInterval(() => { t += 1; setRecordingTime(t); if (t >= 120) recorder.stop(); }, 1000);
+    } catch { alert('No microphone access'); }
+  };
+
+  const handleStopVoiceMessage = () => { mediaRecorderRef.current?.stop(); };
+
   const fmtTime = (ts: number) => new Date(ts).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
 
   const fmtDate = (ts: number) => {
@@ -216,9 +248,17 @@ export function ChatPage() {
     }
     if (type === 'video' && msg.fileUrl) return <video src={msg.fileUrl} controls className="max-w-[240px] rounded-xl" />;
     if (type === 'video_message' && msg.fileUrl) return <video src={msg.fileUrl} controls playsInline className="w-32 h-32 rounded-full object-cover" style={{ border: '2px solid var(--bg-border)' }} />;
+    if (type === 'voice' && msg.fileUrl) return (
+      <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl" style={{ backgroundColor: isMe ? undefined : 'var(--msg-other-bg)', border: isMe ? 'none' : '1px solid var(--msg-other-border)', minWidth: 200 }}>
+        <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'var(--msg-me-bg)' }}>
+          <Mic size={14} style={{ color: 'var(--msg-me-text)' }} />
+        </div>
+        <audio controls src={msg.fileUrl} className="flex-1" style={{ height: 32, minWidth: 0 }} />
+      </div>
+    );
 
     return (
-      <div className={`px-3.5 py-2.5 rounded-2xl ${isMe ? 'msg-me rounded-br-[4px]' : 'rounded-bl-[4px]'}`}
+      <div className={`px-3.5 py-2.5 rounded-xl ${isMe ? 'msg-me rounded-br-[4px]' : 'rounded-bl-[4px]'}`}
         style={!isMe ? { backgroundColor: 'var(--msg-other-bg)', border: '1px solid var(--msg-other-border)', color: 'var(--msg-other-text)' } : undefined}>
         {msg.replyTo && <ReplySnippet reply={msg.replyTo} isMe={isMe} />}
         <p className="text-[14px] leading-relaxed break-words whitespace-pre-wrap">{msg.text}</p>
@@ -430,7 +470,7 @@ export function ChatPage() {
       {isRecording && (
         <div className="px-4 py-2 flex items-center gap-3 animate-fadeIn" style={{ backgroundColor: 'var(--bg-panel)', borderTop: '1px solid var(--bg-border)' }}>
           <div className="w-2.5 h-2.5 rounded-full animate-pulse" style={{ backgroundColor: 'var(--danger)' }} />
-          <span className="text-sm font-medium" style={{ color: 'var(--danger)' }}>Recording... {recordingTime}s</span>
+          <span className="text-sm font-medium" style={{ color: 'var(--danger)' }}>Recording video... {recordingTime}s</span>
           <button onClick={handleStopVideoMessage} className="ml-auto px-3 py-1.5 rounded-lg text-sm flex items-center gap-1 transition-all active:scale-95"
             style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--bg-border)', color: 'var(--danger)' }}>
             <StopCircle size={14} /> Stop
@@ -505,25 +545,46 @@ export function ChatPage() {
       {/* Input bar */}
       <div className="flex items-end gap-2 px-3 py-3 flex-shrink-0" style={{ backgroundColor: 'var(--bg-panel)', borderTop: replyingTo ? 'none' : '1px solid var(--bg-border)' }}>
         <button onClick={() => { setShowStickers(v => !v); setShowAttach(false); }}
-          className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 transition-all active:scale-90"
+          className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition-all active:scale-90"
           style={showStickers ? { background: 'var(--msg-me-bg)', color: 'var(--msg-me-text)' } : { backgroundColor: 'var(--bg-card)', border: '1px solid var(--bg-border)', color: 'var(--tx-muted)' }}>
           <Smile size={18} />
         </button>
         <button onClick={() => { setShowAttach(v => !v); setShowStickers(false); }}
-          className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 transition-all active:scale-90"
+          className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition-all active:scale-90"
           style={showAttach ? { background: 'var(--msg-me-bg)', color: 'var(--msg-me-text)' } : { backgroundColor: 'var(--bg-card)', border: '1px solid var(--bg-border)', color: 'var(--tx-muted)' }}>
           <Paperclip size={18} />
         </button>
-        <div className="flex-1 rounded-2xl px-3.5 py-2.5 themed-border themed-border-focus" style={{ backgroundColor: 'var(--bg-input)' }}>
-          <textarea ref={inputRef} placeholder="Message..." value={messageText} onChange={handleInput} onKeyDown={handleKeyDown} rows={1}
-            className="w-full bg-transparent resize-none max-h-[120px] text-sm leading-relaxed py-0.5"
-            style={{ color: 'var(--tx-primary)' }} />
+        <div className="flex-1 rounded-lg px-3 py-2 themed-border themed-border-focus" style={{ backgroundColor: 'var(--bg-input)' }}>
+          {isVoiceRecording ? (
+            <div className="flex items-center gap-2 py-0.5">
+              <div className="w-2 h-2 rounded-full animate-pulse flex-shrink-0" style={{ backgroundColor: 'var(--danger)' }} />
+              <span className="text-sm" style={{ color: 'var(--danger)' }}>Recording {recordingTime}s</span>
+            </div>
+          ) : (
+            <textarea ref={inputRef} placeholder="Message..." value={messageText} onChange={handleInput} onKeyDown={handleKeyDown} rows={1}
+              className="w-full bg-transparent resize-none max-h-[120px] text-sm leading-relaxed py-0.5"
+              style={{ color: 'var(--tx-primary)' }} />
+          )}
         </div>
-        <button onClick={() => handleSend()} disabled={!messageText.trim() || isUploading}
-          className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 transition-all duration-200"
-          style={messageText.trim() ? { background: 'var(--msg-me-bg)', color: 'var(--msg-me-text)' } : { backgroundColor: 'var(--bg-card)', border: '1px solid var(--bg-border)', color: 'var(--tx-dim)', cursor: 'not-allowed' }}>
-          <Send size={16} />
-        </button>
+        {isVoiceRecording ? (
+          <button onClick={handleStopVoiceMessage}
+            className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition-all duration-200 animate-pulse"
+            style={{ backgroundColor: 'var(--danger)', color: '#fff' }}>
+            <StopCircle size={18} />
+          </button>
+        ) : messageText.trim() ? (
+          <button onClick={() => handleSend()}
+            className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition-all duration-200 active:scale-90"
+            style={{ background: 'var(--msg-me-bg)', color: 'var(--msg-me-text)' }}>
+            <Send size={17} />
+          </button>
+        ) : (
+          <button onClick={handleStartVoiceMessage} disabled={isRecording || isUploading}
+            className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition-all duration-200 active:scale-90"
+            style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--bg-border)', color: 'var(--tx-muted)' }}>
+            <Mic size={18} />
+          </button>
+        )}
       </div>
     </div>
   );

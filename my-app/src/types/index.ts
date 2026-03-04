@@ -1,4 +1,4 @@
-export type MessageType = 'text' | 'image' | 'video' | 'sticker' | 'video_message';
+export type MessageType = 'text' | 'image' | 'video' | 'sticker' | 'video_message' | 'voice';
 export type Theme = 'dark' | 'light';
 
 export interface User {

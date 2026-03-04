@@ -28,26 +28,17 @@ interface StoryGroup {
 
 function StoryAvatar({ name, hasUnviewed, size = 52 }: { name: string; hasUnviewed: boolean; size?: number }) {
   const initials = name.slice(0, 2).toUpperCase();
-  const inner = size - 6;
   return (
-    <div className="rounded-full p-[2.5px] transition-all"
+    <div className="rounded-full flex items-center justify-center font-semibold transition-colors"
       style={{
         width: size, height: size,
-        background: hasUnviewed
-          ? 'linear-gradient(135deg, var(--accent), var(--accent-secondary))'
-          : 'var(--bg-border)',
+        border: `2px solid ${hasUnviewed ? 'var(--accent)' : 'var(--bg-border)'}`,
+        backgroundColor: 'var(--bg-card)',
+        color: 'var(--tx-primary)',
+        fontSize: size > 48 ? 13 : 11,
+        letterSpacing: '0.02em',
       }}>
-      <div className="w-full h-full rounded-full p-[2px]" style={{ backgroundColor: 'var(--bg-panel)' }}>
-        <div className="w-full h-full rounded-full flex items-center justify-center font-semibold"
-          style={{
-            width: inner, height: inner,
-            backgroundColor: 'var(--bg-card)',
-            color: 'var(--tx-primary)',
-            fontSize: size > 48 ? 14 : 12,
-          }}>
-          {initials}
-        </div>
-      </div>
+      {initials}
     </div>
   );
 }

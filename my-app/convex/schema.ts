@@ -50,6 +50,7 @@ export default defineSchema({
       v.literal("video"),
       v.literal("sticker"),
       v.literal("video_message"),
+      v.literal("voice"),
     )),
     fileUrl: v.optional(v.string()),
     replyToId: v.optional(v.id("messages")),

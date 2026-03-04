@@ -13,7 +13,9 @@ import { StoryCircles } from '../components/StoryCircles';
 import {
   Search, MessageCircle, LogOut, Users, User,
   UsersRound, Send, CheckCheck, X, Plus, Shield,
-  Camera, Film, MessageSquare, Maximize2, Settings, Check,
+  MessageSquare, Maximize2, Settings, Check,
+  Mic, StopCircle, Paperclip, Image, Video,
+  Pencil, Phone, Bookmark, UserCheck, Camera, Film,
 } from 'lucide-react';
 
 /* -- Modal Overlay ------------------------------------------------ */
@@ -36,7 +38,7 @@ function ProfileModal({ user, onClose }: {
   const initials = name.slice(0, 2).toUpperCase();
   return (
     <ModalOverlay onClose={onClose}>
-      <div className="rounded-2xl p-6 relative w-[90vw] max-w-sm text-center" style={{ backgroundColor: 'var(--bg-panel)', border: '1px solid var(--bg-border)' }}>
+      <div className="rounded-xl p-5 relative w-[90vw] max-w-sm text-center" style={{ backgroundColor: 'var(--bg-panel)', border: '1px solid var(--bg-border)' }}>
         <button onClick={onClose} className="absolute top-3 right-3 w-7 h-7 rounded-full flex items-center justify-center"
           style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--bg-border)', color: 'var(--tx-dim)' }}>
           <X size={13} />
@@ -94,7 +96,7 @@ function CreateGroupModal({ onClose, onCreate }: {
 
   return (
     <ModalOverlay onClose={onClose}>
-      <div className="rounded-2xl p-5 relative w-[90vw] max-w-sm flex flex-col max-h-[85vh]" style={{ backgroundColor: 'var(--bg-panel)', border: '1px solid var(--bg-border)' }}>
+      <div className="rounded-xl p-4 relative w-[90vw] max-w-sm flex flex-col max-h-[85vh]" style={{ backgroundColor: 'var(--bg-panel)', border: '1px solid var(--bg-border)' }}>
         <button onClick={onClose} className="absolute top-3 right-3 w-7 h-7 rounded-full flex items-center justify-center"
           style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--bg-border)', color: 'var(--tx-dim)' }}><X size={13} /></button>
         <h2 className="text-base font-bold mb-4" style={{ color: 'var(--tx-primary)' }}>Create Group</h2>
@@ -168,7 +170,7 @@ function NewChatModal({ onClose, onCreate }: {
 
   return (
     <ModalOverlay onClose={onClose}>
-      <div className="rounded-2xl p-5 relative w-[90vw] max-w-sm" style={{ backgroundColor: 'var(--bg-panel)', border: '1px solid var(--bg-border)' }}>
+      <div className="rounded-xl p-4 relative w-[90vw] max-w-sm" style={{ backgroundColor: 'var(--bg-panel)', border: '1px solid var(--bg-border)' }}>
         <button onClick={onClose} className="absolute top-3 right-3 w-7 h-7 rounded-full flex items-center justify-center"
           style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--bg-border)', color: 'var(--tx-dim)' }}><X size={13} /></button>
         <h2 className="text-base font-bold mb-1" style={{ color: 'var(--tx-primary)' }}>New Chat</h2>
@@ -212,6 +214,23 @@ function NewChatModal({ onClose, onCreate }: {
   );
 }
 
+/* -- Nav Item ---------------------------------------------------- */
+function NavItem({ icon, label, onClick, badge, danger }: {
+  icon: React.ReactNode; label: string; onClick: () => void; badge?: string; danger?: boolean;
+}) {
+  return (
+    <button onClick={onClick}
+      className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors text-[13px] font-medium select-none"
+      style={{ color: danger ? 'var(--tx-muted)' : 'var(--tx-secondary)' }}
+      onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'var(--bg-hover)'; e.currentTarget.style.color = danger ? 'var(--danger)' : 'var(--tx-primary)'; }}
+      onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = danger ? 'var(--tx-muted)' : 'var(--tx-secondary)'; }}>
+      <span style={{ width: 16, flexShrink: 0, display: 'flex', alignItems: 'center', opacity: 0.6 }}>{icon}</span>
+      <span className="flex-1">{label}</span>
+      {badge && <span className="text-[10px] px-1.5 py-0.5 rounded font-medium" style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--bg-border)', color: 'var(--tx-dim)' }}>{badge}</span>}
+    </button>
+  );
+}
+
 /* -- Main Page ---------------------------------------------------- */
 
 interface ConvexChatWithPreview {
@@ -221,6 +240,59 @@ interface ConvexChatWithPreview {
 
 interface ConvexMsg {
   _id: string; senderId: string; text: string; messageType?: MessageType; fileUrl?: string; isRead: boolean; createdAt: number;
+}
+
+/* -- Contacts Modal ---------------------------------------------- */
+function ContactsModal({ onClose, chats, onSelectChat, onAddNew }: {
+  onClose: () => void;
+  chats: ConvexChatWithPreview[];
+  onSelectChat: (id: string) => void;
+  onAddNew: () => void;
+}) {
+  const contacts = chats.filter(c => !c.isGroup);
+  return (
+    <ModalOverlay onClose={onClose}>
+      <div className="rounded-xl overflow-hidden w-[90vw] max-w-[340px]"
+        style={{ backgroundColor: 'var(--bg-panel)', border: '1px solid var(--bg-border)' }}>
+        <div className="flex items-center justify-between px-4 py-4" style={{ borderBottom: '1px solid var(--bg-border)' }}>
+          <h3 className="text-[14px] font-semibold" style={{ color: 'var(--tx-primary)' }}>Contacts</h3>
+          <button onClick={onClose} className="p-1 rounded transition-colors" style={{ color: 'var(--tx-dim)' }}
+            onMouseEnter={e => e.currentTarget.style.color = 'var(--tx-primary)'}
+            onMouseLeave={e => e.currentTarget.style.color = 'var(--tx-dim)'}>
+            <X size={15} />
+          </button>
+        </div>
+        <div className="overflow-y-auto" style={{ maxHeight: '50vh' }}>
+          {contacts.length === 0 ? (
+            <div className="py-10 text-center px-4">
+              <p className="text-[13px] font-medium" style={{ color: 'var(--tx-muted)' }}>No contacts yet</p>
+              <p className="text-[11px] mt-1" style={{ color: 'var(--tx-dim)' }}>Start a chat to add contacts</p>
+            </div>
+          ) : contacts.map(c => (
+            <button key={c._id} onClick={() => { onSelectChat(c._id); onClose(); }}
+              className="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors"
+              onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-hover)'}
+              onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
+              <div className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-semibold flex-shrink-0"
+                style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--bg-border)', color: 'var(--tx-primary)' }}>
+                {c.name.slice(0, 2).toUpperCase()}
+              </div>
+              <span className="text-[13px] font-medium flex-1 truncate" style={{ color: 'var(--tx-primary)' }}>{c.name}</span>
+            </button>
+          ))}
+        </div>
+        <div className="px-4 py-3" style={{ borderTop: '1px solid var(--bg-border)' }}>
+          <button onClick={() => { onAddNew(); onClose(); }}
+            className="w-full py-2.5 rounded-lg text-[13px] font-medium flex items-center justify-center gap-2 transition-colors"
+            style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--bg-border)', color: 'var(--tx-secondary)' }}
+            onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-hover)'}
+            onMouseLeave={e => e.currentTarget.style.backgroundColor = 'var(--bg-card)'}>
+            <Plus size={13} /> Add by Doppi ID
+          </button>
+        </div>
+      </div>
+    </ModalOverlay>
+  );
 }
 
 export function ChatListPage() {
@@ -237,9 +309,18 @@ export function ChatListPage() {
   const [showProfile, setShowProfile] = useState(false);
   const [showCreateGroup, setShowCreateGroup] = useState(false);
   const [showNewChat, setShowNewChat] = useState(false);
+  const [showContacts, setShowContacts] = useState(false);
+  const [isVoiceRecording, setIsVoiceRecording] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const [isUploading, setIsUploading] = useState(false);
+  const [showAttach, setShowAttach] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordingTimerRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const prevMsgCountRef = useRef<number>(0);
 
@@ -253,6 +334,7 @@ export function ChatListPage() {
   const markAsReadMut = useMutation(api.users.markMessagesAsRead);
   const setTypingMut = useMutation(api.users.setTyping);
   const clearTypingMut = useMutation(api.users.clearTyping);
+  const generateUploadUrl = useMutation(api.files.generateUploadUrl);
 
   useEffect(() => {
     if (activeChatIdTyped && currentUserId) markAsReadMut({ chatId: activeChatIdTyped, userId: currentUserId }).catch(() => {});
@@ -300,6 +382,56 @@ export function ChatListPage() {
   }, [messageText, activeChatIdTyped, currentUserId, sendMessageMut, clearTypingMut]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } };
+
+  const handleFileUpload = async (file: File, type: 'image' | 'video') => {
+    if (!activeChatIdTyped || !currentUserId) return;
+    setIsUploading(true); setShowAttach(false);
+    try {
+      const uploadUrl = await generateUploadUrl();
+      const resp = await fetch(uploadUrl, { method: 'POST', headers: { 'Content-Type': file.type }, body: file });
+      const { storageId } = await resp.json() as { storageId: string };
+      await sendMessageMut({ chatId: activeChatIdTyped, senderId: currentUserId, text: type === 'image' ? 'Photo' : 'Video', messageType: type, storageId: storageId as Id<'_storage'> });
+    } catch (err) { console.error('Upload error:', err); }
+    finally { setIsUploading(false); }
+  };
+
+  const handleStartVoiceMessage = async () => {
+    if (!activeChatIdTyped || !currentUserId) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const chunks: Blob[] = [];
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4';
+      const recorder = new MediaRecorder(stream, { mimeType });
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+      recorder.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        clearInterval(recordingTimerRef.current);
+        setIsVoiceRecording(false); setRecordingTime(0); setIsUploading(true);
+        try {
+          const blob = new Blob(chunks, { type: chunks[0]?.type ?? mimeType });
+          const uploadUrl = await generateUploadUrl();
+          const resp = await fetch(uploadUrl, { method: 'POST', headers: { 'Content-Type': blob.type }, body: blob });
+          const { storageId } = await resp.json() as { storageId: string };
+          await sendMessageMut({ chatId: activeChatIdTyped, senderId: currentUserId, text: 'Voice message', messageType: 'voice', storageId: storageId as Id<'_storage'> });
+        } catch (err) { console.error('Voice upload error:', err); }
+        finally { setIsUploading(false); }
+      };
+      recorder.start();
+      mediaRecorderRef.current = recorder;
+      setIsVoiceRecording(true);
+      let t = 0;
+      recordingTimerRef.current = setInterval(() => { t += 1; setRecordingTime(t); if (t >= 120) recorder.stop(); }, 1000);
+    } catch { alert('No microphone access'); }
+  };
+
+  const handleStopVoiceMessage = () => { mediaRecorderRef.current?.stop(); };
+
+  const handleOpenSaved = async () => {
+    const existing = convexChats?.find(c => !c.isGroup && c.name === 'Saved Messages');
+    if (existing) { setActiveChatId(existing._id); return; }
+    const id = await createChat('Saved Messages', false, []);
+    if (id) setActiveChatId(id as string);
+  };
 
   const fmtListTime = (ts: number | null): string => {
     if (!ts) return '';
@@ -367,80 +499,71 @@ export function ChatListPage() {
       {showProfile && <ProfileModal user={auth.user ? { ...auth.user, isVerified: auth.user.isVerified } : null} onClose={() => setShowProfile(false)} />}
       {showCreateGroup && <CreateGroupModal onClose={() => setShowCreateGroup(false)} onCreate={async (name, pids) => { const id = await createChat(name, true, pids); setShowCreateGroup(false); if (id) setActiveChatId(id); }} />}
       {showNewChat && <NewChatModal onClose={() => setShowNewChat(false)} onCreate={async (uid, uname) => { const id = await createChat(uname, false, [uid]); setShowNewChat(false); if (id) setActiveChatId(id); }} />}
+      {showContacts && convexChats && (
+        <ContactsModal
+          onClose={() => setShowContacts(false)}
+          chats={convexChats}
+          onSelectChat={id => setActiveChatId(id)}
+          onAddNew={() => { setShowContacts(false); setShowNewChat(true); }}
+        />
+      )}
 
-      <div className="flex h-screen w-screen overflow-hidden p-2.5 gap-2" style={{ backgroundColor: 'var(--bg-base)' }}>
+      <div className="flex h-screen w-screen overflow-hidden p-2 gap-2" style={{ backgroundColor: 'var(--bg-base)' }}>
 
         {/* LEFT NAV */}
-        <aside className="w-[220px] min-w-[220px] rounded-2xl flex flex-col overflow-hidden flex-shrink-0" style={{ backgroundColor: 'var(--bg-panel)', border: '1px solid var(--bg-border)' }}>
-          <div className="flex items-center gap-3 px-5 py-5 flex-shrink-0" style={{ borderBottom: '1px solid var(--bg-border)' }}>
-            <div className="w-11 h-11 rounded-full flex items-center justify-center text-[15px] font-bold flex-shrink-0"
-              style={{ background: 'var(--msg-me-bg)', color: 'var(--msg-me-text)' }}>
+        <aside className="w-[220px] min-w-[220px] rounded-lg flex flex-col overflow-hidden flex-shrink-0" style={{ backgroundColor: 'var(--bg-panel)', border: '1px solid var(--bg-border)' }}>
+          {/* Brand */}
+          <div className="px-4 py-4 flex-shrink-0" style={{ borderBottom: '1px solid var(--bg-border)' }}>
+            <span className="text-[14px] font-bold tracking-tight" style={{ color: 'var(--tx-primary)' }}>Doppigram</span>
+          </div>
+          {/* User */}
+          <button onClick={() => setShowProfile(true)}
+            className="flex items-center gap-3 px-4 py-3 w-full text-left flex-shrink-0 transition-colors"
+            style={{ borderBottom: '1px solid var(--bg-border)' }}
+            onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-hover)'}
+            onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
+            <div className="w-8 h-8 rounded-full flex items-center justify-center text-[12px] font-bold flex-shrink-0"
+              style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--bg-border)', color: 'var(--tx-primary)' }}>
               {initials}
             </div>
-            <div className="flex flex-col gap-0.5 min-w-0">
+            <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1">
-                <span className="text-[14px] font-bold truncate" style={{ color: 'var(--tx-primary)' }}>{auth.user?.displayName || auth.user?.username}</span>
-                {auth.user?.isVerified && <VerifiedBadge size={14} />}
+                <span className="text-[13px] font-semibold truncate" style={{ color: 'var(--tx-primary)' }}>{auth.user?.displayName || auth.user?.username}</span>
+                {auth.user?.isVerified && <VerifiedBadge size={12} />}
               </div>
-              <span className="flex items-center gap-1.5 text-[11px] font-medium" style={{ color: 'var(--online)' }}>
-                <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ backgroundColor: 'var(--online)' }} />online
+              <span className="text-[11px] flex items-center gap-1" style={{ color: 'var(--online)' }}>
+                <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: 'var(--online)' }} />online
               </span>
             </div>
-          </div>
-          <nav className="flex-1 overflow-y-auto py-1.5 flex flex-col">
-            {[
-              { icon: <User size={17} />, label: 'Profile', onClick: () => setShowProfile(true) },
-              { icon: <MessageCircle size={17} />, label: 'New Chat', onClick: () => setShowNewChat(true) },
-              { icon: <UsersRound size={17} />, label: 'Group', onClick: () => setShowCreateGroup(true) },
-            ].map((item, i) => (
-              <button key={i} onClick={item.onClick}
-                className="flex items-center gap-3 px-5 py-3 text-sm font-medium transition-all duration-200 select-none"
-                style={{ color: 'var(--tx-secondary)' }}
-                onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'var(--bg-hover)'; e.currentTarget.style.color = 'var(--tx-primary)'; }}
-                onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--tx-secondary)'; }}>
-                {item.icon}<span>{item.label}</span>
-              </button>
-            ))}
-            <div className="h-px mx-5 my-1" style={{ backgroundColor: 'var(--bg-border)' }} />
-            {auth.user?.isAdmin && (
-              <button onClick={() => navigate('/vpp')}
-                className="flex items-center gap-3 px-5 py-3 text-sm font-medium transition-all duration-200 select-none"
-                style={{ color: 'var(--accent-secondary)' }}
-                onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'var(--bg-hover)'; }}
-                onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; }}>
-                <Shield size={17} /><span>Admin</span>
-              </button>
-            )}
-            <button onClick={() => navigate('/settings')}
-              className="flex items-center gap-3 px-5 py-3 text-sm font-medium transition-all duration-200 select-none"
-              style={{ color: 'var(--tx-secondary)' }}
-              onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'var(--bg-hover)'; e.currentTarget.style.color = 'var(--tx-primary)'; }}
-              onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'var(--tx-secondary)'; }}>
-              <Settings size={17} /><span>Settings</span>
-            </button>
+          </button>
+          {/* Nav items */}
+          <nav className="flex-1 overflow-y-auto flex flex-col py-1">
+            <NavItem icon={<Pencil size={15} />} label="New Message" onClick={() => setShowNewChat(true)} />
+            <NavItem icon={<UsersRound size={15} />} label="New Group" onClick={() => setShowCreateGroup(true)} />
+            <NavItem icon={<UserCheck size={15} />} label="Contacts" onClick={() => setShowContacts(true)} />
+            <NavItem icon={<Phone size={15} />} label="Calls" onClick={() => {}} badge="Soon" />
+            <div className="h-px mx-4 my-1" style={{ backgroundColor: 'var(--bg-border)' }} />
+            <NavItem icon={<Bookmark size={15} />} label="Saved Messages" onClick={handleOpenSaved} />
+            <NavItem icon={<Settings size={15} />} label="Settings" onClick={() => navigate('/settings')} />
+            {auth.user?.isAdmin && <NavItem icon={<Shield size={15} />} label="Admin Panel" onClick={() => navigate('/vpp')} />}
             <div className="flex-1" />
-            <button onClick={logout}
-              className="flex items-center gap-3 px-5 py-3 text-sm font-medium transition-all duration-200 select-none"
-              style={{ color: 'var(--tx-muted)' }}
-              onMouseEnter={e => { e.currentTarget.style.color = 'var(--danger)'; e.currentTarget.style.backgroundColor = 'var(--bg-hover)'; }}
-              onMouseLeave={e => { e.currentTarget.style.color = 'var(--tx-muted)'; e.currentTarget.style.backgroundColor = 'transparent'; }}>
-              <LogOut size={17} /><span>Sign Out</span>
-            </button>
+            <div className="h-px mx-4 my-1" style={{ backgroundColor: 'var(--bg-border)' }} />
+            <NavItem icon={<LogOut size={15} />} label="Sign Out" onClick={logout} danger />
           </nav>
         </aside>
 
         {/* CENTER CHAT */}
-        <main className="flex-1 rounded-2xl flex flex-col overflow-hidden min-w-0" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--bg-border)' }}>
+        <main className="flex-1 rounded-lg flex flex-col overflow-hidden min-w-0" style={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--bg-border)' }}>
           {!activeChatId ? (
             <div className="flex flex-col items-center justify-center h-full gap-3 text-center animate-fadeIn">
-              <div className="opacity-[0.15] animate-float"><MessageSquare size={48} style={{ color: 'var(--accent)' }} /></div>
+              <div className="opacity-[0.12]"><MessageSquare size={40} style={{ color: 'var(--tx-muted)' }} /></div>
               <h2 className="text-lg font-bold" style={{ color: 'var(--tx-dim)' }}>Select a chat</h2>
               <p className="text-sm" style={{ color: 'var(--tx-ghost)' }}>Choose a conversation to start messaging</p>
             </div>
           ) : (
             <>
               {/* Chat header */}
-              <div className="flex items-center gap-3 px-5 py-3 flex-shrink-0" style={{ backgroundColor: 'var(--bg-panel)', borderBottom: '1px solid var(--bg-border)' }}>
+              <div className="flex items-center gap-3 px-4 py-3 flex-shrink-0" style={{ backgroundColor: 'var(--bg-panel)', borderBottom: '1px solid var(--bg-border)' }}>
                 <div className="w-10 h-10 rounded-full flex items-center justify-center text-lg flex-shrink-0"
                   style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--bg-border)' }}>
                   {activeChat?.isGroup ? <Users size={18} style={{ color: 'var(--accent-secondary)' }} /> : <User size={18} style={{ color: 'var(--accent)' }} />}
@@ -465,7 +588,7 @@ export function ChatListPage() {
               </div>
 
               {/* Messages */}
-              <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-1" style={{ backgroundColor: 'var(--bg-surface)', background: chatBackground || undefined, backgroundSize: 'cover', backgroundPosition: 'center' }}>
+              <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-1" style={{ backgroundColor: 'var(--bg-surface)', background: chatBackground || undefined, backgroundSize: 'cover', backgroundPosition: 'center' }}>
                 {!chatMessages ? (
                   <div className="flex items-center justify-center h-full"><div className="w-6 h-6 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--bg-border)', borderTopColor: 'var(--accent)' }} /></div>
                 ) : chatMessages.length === 0 ? (
@@ -500,9 +623,16 @@ export function ChatListPage() {
                               <video src={msg.fileUrl} controls className="max-w-[180px] rounded-xl" />
                             ) : type === 'video_message' && msg.fileUrl ? (
                               <video src={msg.fileUrl} controls playsInline className="w-24 h-24 rounded-full object-cover" style={{ border: '2px solid var(--bg-border)' }} />
+                            ) : type === 'voice' && msg.fileUrl ? (
+                              <div className="flex items-center gap-2 px-3 py-2 rounded-xl" style={{ backgroundColor: isMe ? undefined : 'var(--msg-other-bg)', border: isMe ? 'none' : '1px solid var(--msg-other-border)', minWidth: 160 }}>
+                                <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'var(--msg-me-bg)' }}>
+                                  <Mic size={13} style={{ color: 'var(--msg-me-text)' }} />
+                                </div>
+                                <audio controls src={msg.fileUrl} style={{ height: 28, minWidth: 0, flex: 1 }} />
+                              </div>
                             ) : (
                               <div className="max-w-[62%] animate-msgPop">
-                                <div className={`px-3.5 py-2.5 rounded-2xl ${isMe ? 'msg-me rounded-br-[4px]' : 'rounded-bl-[4px]'}`}
+                                <div className={`px-3 py-2 rounded-xl ${isMe ? 'msg-me rounded-br-[4px]' : 'rounded-bl-[4px]'}`}
                                   style={!isMe ? { backgroundColor: 'var(--msg-other-bg)', border: '1px solid var(--msg-other-border)', color: 'var(--msg-other-text)' } : undefined}>
                                   <p className="text-[13.5px] leading-relaxed break-words whitespace-pre-wrap">{msg.text}</p>
                                   <div className="flex items-center gap-1 mt-1 justify-end">
@@ -521,27 +651,78 @@ export function ChatListPage() {
                 )}
               </div>
 
-              {/* Input bar */}
-              <div className="flex items-end gap-2 px-4 py-3 flex-shrink-0" style={{ backgroundColor: 'var(--bg-panel)', borderTop: '1px solid var(--bg-border)' }}>
-                <div className="flex-1 rounded-2xl px-3.5 py-2.5 flex items-end themed-border themed-border-focus" style={{ backgroundColor: 'var(--bg-input)' }}>
-                  <textarea ref={inputRef} placeholder="Message..." value={messageText} onChange={handleInput} onKeyDown={handleKeyDown} rows={1}
-                    className="w-full bg-transparent resize-none max-h-[120px] text-sm leading-relaxed py-0.5 placeholder-current"
-                    style={{ color: 'var(--tx-primary)', ['--tw-placeholder-opacity' as string]: 1 }} />
+              {/* Attach menu */}
+              {showAttach && (
+                <div className="px-4 py-2 flex gap-2 animate-slideDown" style={{ backgroundColor: 'var(--bg-panel)', borderTop: '1px solid var(--bg-border)' }}>
+                  <button onClick={() => { imageInputRef.current?.click(); setShowAttach(false); }}
+                    className="flex flex-col items-center gap-1 px-4 py-2.5 rounded-lg transition-colors themed-border"
+                    style={{ backgroundColor: 'var(--bg-card)' }}>
+                    <Image size={18} style={{ color: 'var(--accent)' }} />
+                    <span className="text-[10px] font-medium" style={{ color: 'var(--tx-muted)' }}>Photo</span>
+                  </button>
+                  <button onClick={() => { videoInputRef.current?.click(); setShowAttach(false); }}
+                    className="flex flex-col items-center gap-1 px-4 py-2.5 rounded-lg transition-colors themed-border"
+                    style={{ backgroundColor: 'var(--bg-card)' }}>
+                    <Video size={18} style={{ color: 'var(--accent-secondary)' }} />
+                    <span className="text-[10px] font-medium" style={{ color: 'var(--tx-muted)' }}>Video</span>
+                  </button>
+                  <button onClick={() => setShowAttach(false)} className="ml-auto self-center p-1.5" style={{ color: 'var(--tx-dim)' }}>
+                    <X size={15} />
+                  </button>
                 </div>
-                <button onClick={handleSend} disabled={!messageText.trim()}
-                  className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition-all duration-200"
-                  style={messageText.trim() ? { background: 'var(--msg-me-bg)', color: 'var(--msg-me-text)' } : { backgroundColor: 'var(--bg-card)', border: '1px solid var(--bg-border)', color: 'var(--tx-dim)', cursor: 'not-allowed' }}>
-                  <Send size={16} />
+              )}
+
+              {/* Hidden file inputs */}
+              <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFileUpload(f, 'image'); e.target.value = ''; }} />
+              <input ref={videoInputRef} type="file" accept="video/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFileUpload(f, 'video'); e.target.value = ''; }} />
+
+              {/* Input bar */}
+              <div className="flex items-end gap-2 px-3 py-3 flex-shrink-0" style={{ backgroundColor: 'var(--bg-panel)', borderTop: showAttach ? 'none' : '1px solid var(--bg-border)' }}>
+                <button onClick={() => setShowAttach(v => !v)}
+                  className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition-all active:scale-90"
+                  style={showAttach ? { background: 'var(--msg-me-bg)', color: 'var(--msg-me-text)' } : { backgroundColor: 'var(--bg-card)', border: '1px solid var(--bg-border)', color: 'var(--tx-muted)' }}>
+                  <Paperclip size={18} />
                 </button>
+                <div className="flex-1 rounded-lg px-3 py-2 themed-border themed-border-focus" style={{ backgroundColor: 'var(--bg-input)' }}>
+                  {isVoiceRecording ? (
+                    <div className="flex items-center gap-2 py-0.5">
+                      <div className="w-2 h-2 rounded-full animate-pulse flex-shrink-0" style={{ backgroundColor: 'var(--danger)' }} />
+                      <span className="text-sm" style={{ color: 'var(--danger)' }}>Recording {recordingTime}s</span>
+                    </div>
+                  ) : (
+                    <textarea ref={inputRef} placeholder="Message..." value={messageText} onChange={handleInput} onKeyDown={handleKeyDown} rows={1}
+                      className="w-full bg-transparent resize-none max-h-[120px] text-sm leading-relaxed py-0.5"
+                      style={{ color: 'var(--tx-primary)' }} />
+                  )}
+                </div>
+                {isVoiceRecording ? (
+                  <button onClick={handleStopVoiceMessage}
+                    className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition-all duration-200 animate-pulse"
+                    style={{ backgroundColor: 'var(--danger)', color: '#fff' }}>
+                    <StopCircle size={18} />
+                  </button>
+                ) : messageText.trim() ? (
+                  <button onClick={handleSend}
+                    className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition-all duration-200 active:scale-90"
+                    style={{ background: 'var(--msg-me-bg)', color: 'var(--msg-me-text)' }}>
+                    <Send size={17} />
+                  </button>
+                ) : (
+                  <button onClick={handleStartVoiceMessage} disabled={isUploading}
+                    className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition-all duration-200 active:scale-90"
+                    style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--bg-border)', color: 'var(--tx-muted)' }}>
+                    <Mic size={18} />
+                  </button>
+                )}
               </div>
             </>
           )}
         </main>
 
         {/* RIGHT CHAT LIST */}
-        <section className="w-[280px] min-w-[250px] rounded-2xl flex flex-col overflow-hidden flex-shrink-0" style={{ backgroundColor: 'var(--bg-panel)', border: '1px solid var(--bg-border)' }}>
-          <div className="px-5 py-5 flex-shrink-0" style={{ borderBottom: '1px solid var(--bg-border)' }}>
-            <span className="text-[17px] font-bold tracking-tight" style={{ color: 'var(--tx-primary)' }}>Messages</span>
+        <section className="w-[280px] min-w-[250px] rounded-lg flex flex-col overflow-hidden flex-shrink-0" style={{ backgroundColor: 'var(--bg-panel)', border: '1px solid var(--bg-border)' }}>
+          <div className="px-4 py-4 flex-shrink-0" style={{ borderBottom: '1px solid var(--bg-border)' }}>
+            <span className="text-[14px] font-semibold" style={{ color: 'var(--tx-primary)' }}>Messages</span>
           </div>
 
           <StoryCircles />
@@ -549,7 +730,7 @@ export function ChatListPage() {
           <div className="relative px-3 py-2 flex-shrink-0">
             <Search size={14} className="absolute left-6 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: 'var(--tx-dim)' }} />
             <input type="text" placeholder="Search..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-              className="w-full rounded-xl py-2.5 pl-9 pr-3.5 text-[13px] transition-all themed-border themed-border-focus"
+              className="w-full rounded-lg py-2 pl-9 pr-3 text-[13px] transition-all themed-border themed-border-focus"
               style={{ backgroundColor: 'var(--bg-input)', color: 'var(--tx-primary)' }} />
           </div>
 
@@ -562,7 +743,7 @@ export function ChatListPage() {
               </div>
             ) : filteredChats.map(chat => (
               <div key={chat._id} onClick={() => setActiveChatId(chat._id)}
-                className="relative flex items-center gap-3 px-3.5 py-3 cursor-pointer transition-all duration-150"
+                className="relative flex items-center gap-3 px-4 py-3 cursor-pointer transition-all duration-150"
                 style={{
                   backgroundColor: activeChatId === chat._id ? 'var(--bg-active)' : 'transparent',
                   borderLeft: activeChatId === chat._id ? '2px solid var(--accent)' : '2px solid transparent',
