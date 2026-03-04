@@ -284,7 +284,10 @@ export function ChatListPage() {
   };
 
   const filteredChats = (convexChats ?? []).filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase()));
-  const activeChat = (convexChats ?? []).find(c => c._id === activeChatId);
+  const activeChatRaw = (convexChats ?? []).find(c => c._id === activeChatId);
+  // For 1-on-1 chats, show the OTHER user's name in the header
+  const otherUser = activeChatRaw && !activeChatRaw.isGroup && participantsStatus && participantsStatus.length > 0 ? participantsStatus[0] : null;
+  const activeChat = activeChatRaw ? { ...activeChatRaw, name: otherUser ? otherUser.username : activeChatRaw.name } : undefined;
   const initials = (auth.user?.username || 'U').slice(0, 2).toUpperCase();
   const typingText = typingUsers && typingUsers.length > 0 ? (typingUsers.length === 1 ? `${typingUsers[0]} печатает...` : `${typingUsers.length} чел. печатают...`) : null;
 

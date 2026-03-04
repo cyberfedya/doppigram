@@ -191,7 +191,13 @@ export function ChatPage() {
     );
   };
 
-  const chat = chatInfo ?? { name: 'Чат', avatar: '💬', isGroup: false };
+  const chatRaw = chatInfo ?? { name: 'Чат', avatar: '💬', isGroup: false };
+  // For 1-on-1 chats, show the OTHER user's name
+  const otherUser = !chatRaw.isGroup && participantsStatus && participantsStatus.length > 0 ? participantsStatus[0] : null;
+  const chat = {
+    ...chatRaw,
+    name: otherUser ? otherUser.username : chatRaw.name,
+  };
   const typingText = typingUsers && typingUsers.length > 0 ? (typingUsers.length === 1 ? `${typingUsers[0]} печатает...` : `${typingUsers.length} человека печатают...`) : null;
 
   const fmtLastSeen = (ts: number): string => {

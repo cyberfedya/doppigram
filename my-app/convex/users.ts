@@ -353,10 +353,16 @@ export const markMessagesAsRead = mutation({
     userId: v.id("users"),
   },
   handler: async (ctx, args) => {
+    // Only mark messages from OTHER users as read (not my own)
     const messages = await ctx.db
       .query("messages")
       .withIndex("by_chatId", (q) => q.eq("chatId", args.chatId))
-      .filter((q) => q.eq(q.field("isRead"), false))
+      .filter((q) =>
+        q.and(
+          q.eq(q.field("isRead"), false),
+          q.neq(q.field("senderId"), args.userId)
+        )
+      )
       .collect();
 
     for (const msg of messages) {
@@ -472,10 +478,28 @@ export const getChatsWithLastMessage = query({
           )
           .collect();
 
+        // For 1-on-1 chats, show the OTHER user's name and avatar
+        let displayName = chat.name;
+        let displayAvatar = chat.avatar;
+        if (!chat.isGroup) {
+          const chatParticipants = await ctx.db
+            .query("chatParticipants")
+            .withIndex("by_chatId", (q) => q.eq("chatId", chatId))
+            .collect();
+          const otherParticipant = chatParticipants.find((p) => p.userId !== args.userId);
+          if (otherParticipant) {
+            const otherUser = await ctx.db.get(otherParticipant.userId);
+            if (otherUser) {
+              displayName = otherUser.username;
+              displayAvatar = otherUser.avatar;
+            }
+          }
+        }
+
         return {
           _id: chat._id,
-          name: chat.name,
-          avatar: chat.avatar,
+          name: displayName,
+          avatar: displayAvatar,
           isGroup: chat.isGroup,
           createdAt: chat.createdAt,
           lastMessage: lastMessage?.text ?? null,
