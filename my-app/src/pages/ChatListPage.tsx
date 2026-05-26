@@ -82,7 +82,7 @@ function CreateGroupModal({ onClose, onCreate }: {
   useEffect(() => { nameRef.current?.focus(); }, []);
 
   useEffect(() => {
-    if (!doppId.trim() || doppId.trim().length < 3) { setLookupResult(undefined); return; }
+    if (!doppId.trim() || doppId.trim().length < 1) { setLookupResult(undefined); return; }
     const t = setTimeout(async () => {
       try {
         const u = await usersApi.lookup(doppId.trim());
@@ -171,7 +171,7 @@ function NewChatModal({ onClose, onCreate }: {
   const [lookupResult, setLookupResult] = useState<{ _id: string; username: string; displayName?: string; avatar?: string; isOnline: boolean; isVerified: boolean; statusText?: string } | null | undefined>(undefined);
 
   useEffect(() => {
-    if (!doppId.trim() || doppId.trim().length < 3) { setLookupResult(undefined); return; }
+    if (!doppId.trim() || doppId.trim().length < 1) { setLookupResult(undefined); return; }
     const t = setTimeout(async () => {
       try {
         const u = await usersApi.lookup(doppId.trim());
@@ -221,7 +221,7 @@ function NewChatModal({ onClose, onCreate }: {
             </div>
           </div>
         )}
-        {lookupResult === null && doppId.trim().length >= 3 && (
+        {lookupResult === null && doppId.trim().length >= 1 && (
           <p className="text-xs text-center py-3" style={{ color: 'var(--tx-dim)' }}>No user found with this Doppi ID</p>
         )}
         <button onClick={handleStart} disabled={!lookupResult || loading}
