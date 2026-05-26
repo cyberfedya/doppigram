@@ -50,16 +50,13 @@ builder.Services.AddAuthorization();
 builder.Services.AddControllers();
 builder.Services.AddSignalR();
 
-// CORS — allow the Vite dev server and production origins
+// CORS — allow any origin (Netlify + local dev)
 builder.Services.AddCors(opt =>
 {
     opt.AddDefaultPolicy(policy =>
     {
         policy
-            .WithOrigins(
-                "http://localhost:5173",
-                "http://localhost:4173",
-                "http://localhost:3000")
+            .SetIsOriginAllowed(_ => true)
             .AllowAnyHeader()
             .AllowAnyMethod()
             .AllowCredentials();
