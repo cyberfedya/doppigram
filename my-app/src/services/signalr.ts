@@ -1,6 +1,6 @@
 import * as signalR from '@microsoft/signalr';
 
-const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:5000';
+const BASE = import.meta.env.VITE_API_URL ?? '';
 
 let _connection: signalR.HubConnection | null = null;
 
@@ -9,6 +9,8 @@ export function getConnection(): signalR.HubConnection {
     _connection = new signalR.HubConnectionBuilder()
       .withUrl(`${BASE}/hubs/chat`, {
         accessTokenFactory: () => localStorage.getItem('doppigram_token') ?? '',
+        // Use LongPolling so the connection works through Netlify's HTTP proxy
+        transport: signalR.HttpTransportType.LongPolling,
       })
       .withAutomaticReconnect()
       .configureLogging(signalR.LogLevel.Warning)

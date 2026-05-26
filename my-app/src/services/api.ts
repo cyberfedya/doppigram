@@ -1,4 +1,4 @@
-const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:5000';
+const BASE = import.meta.env.VITE_API_URL ?? '';
 
 // ─── helpers ───────────────────────────────────────────────────────────────
 
@@ -16,7 +16,7 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
     throw new Error(err);
   }
   const text = await res.text();
-  return text ? JSON.parse(text) : undefined;
+  return (text ? JSON.parse(text) : undefined) as T;
 }
 
 const get = <T>(path: string) => req<T>(path);

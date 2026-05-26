@@ -5,7 +5,6 @@ import Login from './pages/Login';
 import AdminPanel from './pages/AdminPanel';
 import InitAdmin from './pages/InitAdmin';
 import { ChatListPage } from './pages/ChatListPage';
-import { ChatPage } from './pages/ChatPage';
 import SettingsPage from './pages/SettingsPage';
 import './styles/global.css';
 
@@ -77,14 +76,7 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
-      <Route
-        path="/chat/:id"
-        element={
-          <ProtectedRoute>
-            <ChatPage />
-          </ProtectedRoute>
-        }
-      />
+      <Route path="/chat/:id" element={<Navigate to="/chats" replace />} />
       <Route
         path="/settings"
         element={
