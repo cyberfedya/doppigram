@@ -106,11 +106,7 @@ app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
-app.MapHub<ChatHub>("/hubs/chat", options =>
-{
-    // Keep each LongPolling request under Netlify's 26s proxy timeout
-    options.LongPolling.PollTimeout = TimeSpan.FromSeconds(20);
-});
+app.MapHub<ChatHub>("/hubs/chat");
 
 // ─── DB auto-migrate on startup ──────────────────────────────────────────────
 using (var scope = app.Services.CreateScope())

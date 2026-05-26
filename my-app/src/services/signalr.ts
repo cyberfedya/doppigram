@@ -1,28 +1,52 @@
 import * as signalR from '@microsoft/signalr';
 
-const BASE = import.meta.env.VITE_API_URL ?? '';
-
+// Runtime config: fetch /config.json to get direct CF tunnel URL for SignalR
+// (bypasses Netlify proxy which kills long-running connections)
+let _signalrUrl: string | null = null;
 let _connection: signalR.HubConnection | null = null;
+
+async function resolveSignalrUrl(): Promise<string> {
+  if (_signalrUrl !== null) return _signalrUrl;
+  try {
+    const res = await fetch('/config.json', { cache: 'no-store' });
+    if (res.ok) {
+      const cfg = await res.json() as { signalrUrl?: string };
+      if (cfg.signalrUrl?.startsWith('http')) {
+        _signalrUrl = cfg.signalrUrl!;
+        return _signalrUrl;
+      }
+    }
+  } catch { /* ignore */ }
+  // Fallback: relative URL (through Netlify proxy — works but slower)
+  const fallback: string = import.meta.env.VITE_API_URL ?? '';
+  _signalrUrl = fallback;
+  return fallback;
+}
+
+function buildConnection(url: string): signalR.HubConnection {
+  return new signalR.HubConnectionBuilder()
+    .withUrl(`${url}/hubs/chat`, {
+      accessTokenFactory: () => localStorage.getItem('doppigram_token') ?? '',
+    })
+    .withAutomaticReconnect()
+    .configureLogging(signalR.LogLevel.Warning)
+    .build();
+}
 
 export function getConnection(): signalR.HubConnection {
   if (!_connection) {
-    _connection = new signalR.HubConnectionBuilder()
-      .withUrl(`${BASE}/hubs/chat`, {
-        accessTokenFactory: () => localStorage.getItem('doppigram_token') ?? '',
-        // Use LongPolling so the connection works through Netlify's HTTP proxy
-        transport: signalR.HttpTransportType.LongPolling,
-      })
-      .withAutomaticReconnect()
-      .configureLogging(signalR.LogLevel.Warning)
-      .build();
+    _connection = buildConnection(_signalrUrl ?? import.meta.env.VITE_API_URL ?? '');
   }
   return _connection;
 }
 
 export async function startConnection(): Promise<void> {
-  const conn = getConnection();
-  if (conn.state === signalR.HubConnectionState.Disconnected) {
-    await conn.start();
+  const url = await resolveSignalrUrl();
+  if (!_connection) {
+    _connection = buildConnection(url);
+  }
+  if (_connection.state === signalR.HubConnectionState.Disconnected) {
+    await _connection.start();
   }
 }
 
@@ -30,6 +54,8 @@ export async function stopConnection(): Promise<void> {
   if (_connection && _connection.state !== signalR.HubConnectionState.Disconnected) {
     await _connection.stop();
   }
+  _connection = null;
+  _signalrUrl = null;
 }
 
 /** Wait until the connection is Connected (handles Connecting/Reconnecting states) */
@@ -39,7 +65,6 @@ async function waitForConnected(timeoutMs = 8000): Promise<boolean> {
   if (conn.state === signalR.HubConnectionState.Disconnected) {
     try { await conn.start(); return true; } catch { return false; }
   }
-  // Connecting or Reconnecting — poll until Connected or timeout
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     await new Promise(r => setTimeout(r, 150));
@@ -81,8 +106,6 @@ export async function clearTyping(chatId: string, userId: string): Promise<void>
     await _connection.invoke('ClearTyping', chatId, userId);
   }
 }
-
-// Event subscriptions
 
 type Handler = (...args: unknown[]) => void;
 
