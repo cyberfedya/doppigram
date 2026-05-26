@@ -1,16 +1,4 @@
 [[redirects]]
-  from = "/api/*"
-  to = "http://100.113.170.36:5000/api/:splat"
-  status = 200
-  force = true
-
-[[redirects]]
-  from = "/hubs/*"
-  to = "http://100.113.170.36:5000/hubs/:splat"
-  status = 200
-  force = true
-
-[[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
