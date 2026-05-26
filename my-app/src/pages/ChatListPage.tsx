@@ -410,7 +410,12 @@ export function ChatListPage() {
     const off = on('NewMessage', (msg: unknown) => {
       const m = msg as ApiMessage;
       if (m.chatId === prevChatIdRef.current) {
-        setChatMessages(prev => prev ? [...prev, { ...m, _id: m.id, messageType: m.messageType as MessageType | undefined }] : undefined);
+        setChatMessages(prev => {
+          if (!prev) return prev;
+          // Skip if already added (e.g. by sendMessageMut optimistic update)
+          if (prev.some(existing => existing._id === m.id)) return prev;
+          return [...prev, { ...m, _id: m.id, messageType: m.messageType as MessageType | undefined }];
+        });
       }
       loadChats();
     });
