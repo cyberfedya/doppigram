@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
-import { useMutation } from 'convex/react';
-import { api } from '../../convex/_generated/api';
-import type { Id } from '../../convex/_generated/dataModel';
 import { X, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
 import { VerifiedBadge } from './VerifiedBadge';
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const _noop = async (..._: unknown[]): Promise<any> => {};
 
 interface Story {
   _id: string;
@@ -25,14 +25,16 @@ interface StoryGroup {
 
 export function StoryViewer({ group, currentUserId, onClose }: {
   group: StoryGroup;
-  currentUserId: Id<'users'>;
+  currentUserId: string;
   onClose: () => void;
 }) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [progress, setProgress] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval>>(undefined);
-  const viewStoryMut = useMutation(api.stories.viewStory);
-  const deleteStoryMut = useMutation(api.stories.deleteStory);
+
+  // TODO: replace with your backend mutations
+  const viewStoryMut = _noop;
+  const deleteStoryMut = _noop;
 
   const story = group.stories[currentIndex];
   const isOwn = group.userId === currentUserId;
@@ -41,7 +43,7 @@ export function StoryViewer({ group, currentUserId, onClose }: {
   useEffect(() => {
     if (!story) return;
     if (group.userId !== currentUserId) {
-      viewStoryMut({ storyId: story._id as Id<'stories'>, viewerId: currentUserId }).catch(() => {});
+      viewStoryMut({ storyId: story._id, viewerId: currentUserId }).catch(() => {});
     }
   }, [story, currentUserId, group.userId, viewStoryMut]);
 
@@ -79,7 +81,7 @@ export function StoryViewer({ group, currentUserId, onClose }: {
   const handleDelete = async () => {
     if (!story) return;
     clearInterval(timerRef.current);
-    await deleteStoryMut({ storyId: story._id as Id<'stories'> });
+    await deleteStoryMut({ storyId: story._id });
     if (group.stories.length <= 1) {
       onClose();
     } else if (currentIndex >= group.stories.length - 1) {

@@ -1,7 +1,5 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useMutation } from 'convex/react';
-import { api } from '../../convex/_generated/api';
 import { useTheme } from '../context/ThemeContext';
 import { Key, UserPlus, CheckCircle, AlertCircle, Sun, Moon } from 'lucide-react';
 
@@ -13,7 +11,6 @@ export default function InitAdmin() {
 
   const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
-  const createInitialAdmin = useMutation(api.seed.createInitialAdmin);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -22,9 +19,8 @@ export default function InitAdmin() {
     if (password.length < 6) { setMessage({ type: 'error', text: 'Password must be at least 6 characters' }); return; }
     setIsLoading(true);
     try {
-      await createInitialAdmin({ username, password });
-      setMessage({ type: 'success', text: `Admin "${username}" created! Redirecting...` });
-      setTimeout(() => navigate('/login'), 2000);
+      // TODO: implement with your backend
+      throw new Error('Backend not configured');
     } catch (error) {
       setMessage({ type: 'error', text: 'Error: ' + error });
     }

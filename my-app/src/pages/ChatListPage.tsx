@@ -1,10 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery, useMutation } from 'convex/react';
 import { useApp } from '../context/AppContext';
 import { useTheme } from '../context/ThemeContext';
-import { api } from '../../convex/_generated/api';
-import type { Id } from '../../convex/_generated/dataModel';
 import type { MessageType } from '../types';
 import { playMessageSound, playSendSound } from '../utils/sounds';
 import { VerifiedBadge } from '../components/VerifiedBadge';
@@ -17,6 +14,9 @@ import {
   Mic, StopCircle, Paperclip, Image, Video,
   Pencil, Phone, Bookmark, UserCheck, Camera, Film,
 } from 'lucide-react';
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const _noop = async (..._: unknown[]): Promise<any> => {};
 
 /* -- Modal Overlay ------------------------------------------------ */
 function ModalOverlay({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
@@ -69,19 +69,20 @@ function ProfileModal({ user, onClose }: {
   );
 }
 
-/* -- Create Group Modal (Doppi ID based) -------------------------- */
+/* -- Create Group Modal ------------------------------------------- */
 function CreateGroupModal({ onClose, onCreate }: {
-  onClose: () => void; onCreate: (name: string, participantIds: Id<'users'>[]) => Promise<void>;
+  onClose: () => void; onCreate: (name: string, participantIds: string[]) => Promise<void>;
 }) {
   const [name, setName] = useState('');
   const [doppId, setDoppId] = useState('');
   const [members, setMembers] = useState<Array<{ _id: string; username: string; displayName?: string }>>([]);
   const [lookupError, setLookupError] = useState('');
-  const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
-  const lookupResult = useQuery(api.users.lookupByUsername, doppId.trim().length >= 3 ? { username: doppId.trim() } : 'skip') as { _id: string; username: string; displayName?: string; isOnline: boolean; isVerified: boolean } | null | undefined;
   const nameRef = useRef<HTMLInputElement>(null);
   useEffect(() => { nameRef.current?.focus(); }, []);
+
+  // TODO: replace with your backend user lookup
+  const lookupResult: { _id: string; username: string; displayName?: string; isOnline: boolean; isVerified: boolean } | null | undefined = undefined;
 
   const addMember = () => {
     if (!lookupResult) { setLookupError('User not found'); return; }
@@ -91,7 +92,7 @@ function CreateGroupModal({ onClose, onCreate }: {
     setLookupError('');
   };
   const removeMember = (id: string) => setMembers(prev => prev.filter(m => m._id !== id));
-  const handle = async () => { if (!name.trim() || members.length === 0) return; setCreating(true); await onCreate(name.trim(), members.map(m => m._id) as Id<'users'>[]); setCreating(false); };
+  const handle = async () => { if (!name.trim() || members.length === 0) return; setCreating(true); await onCreate(name.trim(), members.map(m => m._id)); setCreating(false); };
   const canCreate = name.trim().length > 0 && members.length > 0;
 
   return (
@@ -111,7 +112,7 @@ function CreateGroupModal({ onClose, onCreate }: {
               style={{ backgroundColor: 'var(--bg-input)', color: 'var(--tx-primary)' }}
               onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addMember(); } }} />
           </div>
-          <button onClick={addMember} disabled={!lookupResult || loading}
+          <button onClick={addMember} disabled={!lookupResult}
             className="px-3 py-2 rounded-xl text-xs font-semibold transition-all"
             style={lookupResult ? { backgroundColor: 'var(--accent)', color: 'var(--bg-base)' } : { backgroundColor: 'var(--bg-card)', color: 'var(--tx-dim)' }}>
             Add
@@ -152,19 +153,21 @@ function CreateGroupModal({ onClose, onCreate }: {
   );
 }
 
-/* -- New Direct Chat Modal (Doppi ID lookup) ---------------------- */
+/* -- New Direct Chat Modal ---------------------------------------- */
 function NewChatModal({ onClose, onCreate }: {
-  onClose: () => void; onCreate: (userId: Id<'users'>, username: string) => Promise<void>;
+  onClose: () => void; onCreate: (userId: string, username: string) => Promise<void>;
 }) {
   const [doppId, setDoppId] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const lookupResult = useQuery(api.users.lookupByUsername, doppId.trim().length >= 3 ? { username: doppId.trim() } : 'skip') as { _id: string; username: string; displayName?: string; avatar?: string; isOnline: boolean; isVerified: boolean; statusText?: string } | null | undefined;
+
+  // TODO: replace with your backend user lookup
+  const lookupResult: { _id: string; username: string; displayName?: string; avatar?: string; isOnline: boolean; isVerified: boolean; statusText?: string } | null | undefined = undefined;
 
   const handleStart = async () => {
     if (!lookupResult) { setError('User not found'); return; }
     setLoading(true);
-    await onCreate(lookupResult._id as Id<'users'>, lookupResult.displayName || lookupResult.username);
+    await onCreate(lookupResult._id, lookupResult.displayName || lookupResult.username);
     setLoading(false);
   };
 
@@ -233,19 +236,19 @@ function NavItem({ icon, label, onClick, badge, danger }: {
 
 /* -- Main Page ---------------------------------------------------- */
 
-interface ConvexChatWithPreview {
+interface ChatWithPreview {
   _id: string; name: string; avatar?: string; isGroup: boolean; isVerified?: boolean; createdAt: number;
   lastMessage: string | null; lastMessageType: string | null; lastMessageTime: number | null; unreadCount: number;
 }
 
-interface ConvexMsg {
+interface ChatMsg {
   _id: string; senderId: string; text: string; messageType?: MessageType; fileUrl?: string; isRead: boolean; createdAt: number;
 }
 
 /* -- Contacts Modal ---------------------------------------------- */
 function ContactsModal({ onClose, chats, onSelectChat, onAddNew }: {
   onClose: () => void;
-  chats: ConvexChatWithPreview[];
+  chats: ChatWithPreview[];
   onSelectChat: (id: string) => void;
   onAddNew: () => void;
 }) {
@@ -299,9 +302,19 @@ export function ChatListPage() {
   const { auth, logout, createChat } = useApp();
   const { chatBackground } = useTheme();
   const navigate = useNavigate();
-  const currentUserId = auth.user?.id as Id<'users'> | undefined;
+  const currentUserId = auth.user?.id;
 
-  const convexChats = useQuery(api.users.getChatsWithLastMessage, currentUserId ? { userId: currentUserId } : 'skip') as ConvexChatWithPreview[] | undefined;
+  // TODO: replace with your backend queries/mutations
+  const convexChats: ChatWithPreview[] | undefined = undefined;
+  const chatMessages: ChatMsg[] | undefined = undefined;
+  const typingUsers: string[] | undefined = undefined;
+  const participantsStatus: Array<{ _id: string; username: string; displayName?: string; isOnline: boolean; lastSeen: number; isVerified: boolean }> | undefined = undefined;
+
+  const sendMessageMut = _noop;
+  const markAsReadMut = _noop;
+  const setTypingMut = _noop;
+  const clearTypingMut = _noop;
+  const generateUploadUrl = _noop;
 
   const [searchQuery, setSearchQuery] = useState('');
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
@@ -324,21 +337,9 @@ export function ChatListPage() {
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const prevMsgCountRef = useRef<number>(0);
 
-  const activeChatIdTyped = activeChatId as Id<'chats'> | null;
-
-  const chatMessages = useQuery(api.users.getMessagesForChat, activeChatIdTyped && currentUserId ? { chatId: activeChatIdTyped, limit: 100 } : 'skip') as ConvexMsg[] | undefined;
-  const typingUsers = useQuery(api.users.getTypingUsers, activeChatIdTyped && currentUserId ? { chatId: activeChatIdTyped, currentUserId } : 'skip') as string[] | undefined;
-  const participantsStatus = useQuery(api.users.getChatParticipantsStatus, activeChatIdTyped && currentUserId ? { chatId: activeChatIdTyped, currentUserId } : 'skip') as Array<{ _id: string; username: string; displayName?: string; isOnline: boolean; lastSeen: number; isVerified: boolean }> | undefined;
-
-  const sendMessageMut = useMutation(api.users.sendMessage);
-  const markAsReadMut = useMutation(api.users.markMessagesAsRead);
-  const setTypingMut = useMutation(api.users.setTyping);
-  const clearTypingMut = useMutation(api.users.clearTyping);
-  const generateUploadUrl = useMutation(api.files.generateUploadUrl);
-
   useEffect(() => {
-    if (activeChatIdTyped && currentUserId) markAsReadMut({ chatId: activeChatIdTyped, userId: currentUserId }).catch(() => {});
-  }, [activeChatIdTyped, currentUserId, chatMessages?.length, markAsReadMut]);
+    if (activeChatId && currentUserId) markAsReadMut({ chatId: activeChatId, userId: currentUserId }).catch(() => {});
+  }, [activeChatId, currentUserId, chatMessages?.length, markAsReadMut]);
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [chatMessages?.length]);
 
@@ -353,15 +354,15 @@ export function ChatListPage() {
   }, [chatMessages, currentUserId]);
 
   useEffect(() => {
-    return () => { clearTimeout(typingTimeoutRef.current); if (activeChatIdTyped && currentUserId) clearTypingMut({ chatId: activeChatIdTyped, userId: currentUserId }).catch(() => {}); };
-  }, [activeChatIdTyped, currentUserId, clearTypingMut]);
+    return () => { clearTimeout(typingTimeoutRef.current); if (activeChatId && currentUserId) clearTypingMut({ chatId: activeChatId, userId: currentUserId }).catch(() => {}); };
+  }, [activeChatId, currentUserId, clearTypingMut]);
 
   const handleTypingStart = useCallback(() => {
-    if (!activeChatIdTyped || !currentUserId || !auth.user?.username) return;
-    setTypingMut({ chatId: activeChatIdTyped, userId: currentUserId, username: auth.user.username }).catch(() => {});
+    if (!activeChatId || !currentUserId || !auth.user?.username) return;
+    setTypingMut({ chatId: activeChatId, userId: currentUserId, username: auth.user.username }).catch(() => {});
     clearTimeout(typingTimeoutRef.current);
-    typingTimeoutRef.current = setTimeout(() => { if (activeChatIdTyped && currentUserId) clearTypingMut({ chatId: activeChatIdTyped, userId: currentUserId }).catch(() => {}); }, 3000);
-  }, [activeChatIdTyped, currentUserId, auth.user?.username, setTypingMut, clearTypingMut]);
+    typingTimeoutRef.current = setTimeout(() => { if (activeChatId && currentUserId) clearTypingMut({ chatId: activeChatId, userId: currentUserId }).catch(() => {}); }, 3000);
+  }, [activeChatId, currentUserId, auth.user?.username, setTypingMut, clearTypingMut]);
 
   const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setMessageText(e.target.value);
@@ -371,32 +372,32 @@ export function ChatListPage() {
   };
 
   const handleSend = useCallback(async () => {
-    if (!messageText.trim() || !activeChatIdTyped || !currentUserId) return;
+    if (!messageText.trim() || !activeChatId || !currentUserId) return;
     const text = messageText.trim();
     setMessageText('');
     if (inputRef.current) inputRef.current.style.height = 'auto';
     clearTimeout(typingTimeoutRef.current);
-    clearTypingMut({ chatId: activeChatIdTyped, userId: currentUserId }).catch(() => {});
+    clearTypingMut({ chatId: activeChatId, userId: currentUserId }).catch(() => {});
     playSendSound();
-    await sendMessageMut({ chatId: activeChatIdTyped, senderId: currentUserId, text, messageType: 'text' });
-  }, [messageText, activeChatIdTyped, currentUserId, sendMessageMut, clearTypingMut]);
+    await sendMessageMut({ chatId: activeChatId, senderId: currentUserId, text, messageType: 'text' });
+  }, [messageText, activeChatId, currentUserId, sendMessageMut, clearTypingMut]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } };
 
   const handleFileUpload = async (file: File, type: 'image' | 'video') => {
-    if (!activeChatIdTyped || !currentUserId) return;
+    if (!activeChatId || !currentUserId) return;
     setIsUploading(true); setShowAttach(false);
     try {
       const uploadUrl = await generateUploadUrl();
       const resp = await fetch(uploadUrl, { method: 'POST', headers: { 'Content-Type': file.type }, body: file });
       const { storageId } = await resp.json() as { storageId: string };
-      await sendMessageMut({ chatId: activeChatIdTyped, senderId: currentUserId, text: type === 'image' ? 'Photo' : 'Video', messageType: type, storageId: storageId as Id<'_storage'> });
+      await sendMessageMut({ chatId: activeChatId, senderId: currentUserId, text: type === 'image' ? 'Photo' : 'Video', messageType: type, storageId });
     } catch (err) { console.error('Upload error:', err); }
     finally { setIsUploading(false); }
   };
 
   const handleStartVoiceMessage = async () => {
-    if (!activeChatIdTyped || !currentUserId) return;
+    if (!activeChatId || !currentUserId) return;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const chunks: Blob[] = [];
@@ -412,7 +413,7 @@ export function ChatListPage() {
           const uploadUrl = await generateUploadUrl();
           const resp = await fetch(uploadUrl, { method: 'POST', headers: { 'Content-Type': blob.type }, body: blob });
           const { storageId } = await resp.json() as { storageId: string };
-          await sendMessageMut({ chatId: activeChatIdTyped, senderId: currentUserId, text: 'Voice message', messageType: 'voice', storageId: storageId as Id<'_storage'> });
+          await sendMessageMut({ chatId: activeChatId, senderId: currentUserId, text: 'Voice message', messageType: 'voice', storageId });
         } catch (err) { console.error('Voice upload error:', err); }
         finally { setIsUploading(false); }
       };
@@ -453,7 +454,7 @@ export function ChatListPage() {
     return new Date(ts).toLocaleDateString('en-US', { day: 'numeric', month: 'long' });
   };
 
-  const getLastMsgPreview = (chat: ConvexChatWithPreview): string => {
+  const getLastMsgPreview = (chat: ChatWithPreview): string => {
     if (!chat.lastMessage) return 'No messages';
     const t = chat.lastMessageType ?? 'text';
     if (t === 'image') return 'Photo';
@@ -465,7 +466,7 @@ export function ChatListPage() {
   const filteredChats = (convexChats ?? []).filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase()));
   const activeChatRaw = (convexChats ?? []).find(c => c._id === activeChatId);
   const otherUser = activeChatRaw && !activeChatRaw.isGroup && participantsStatus && participantsStatus.length > 0 ? participantsStatus[0] : null;
-  const activeChat = activeChatRaw ? { ...activeChatRaw, name: otherUser ? ((otherUser as any).displayName || otherUser.username) : activeChatRaw.name, isVerified: otherUser ? otherUser.isVerified : false } : undefined;
+  const activeChat = activeChatRaw ? { ...activeChatRaw, name: otherUser ? ((otherUser as { displayName?: string; username: string }).displayName || otherUser.username) : activeChatRaw.name, isVerified: otherUser ? otherUser.isVerified : false } : undefined;
   const initials = (auth.user?.displayName || auth.user?.username || 'U').slice(0, 2).toUpperCase();
   const typingNames = typingUsers ?? [];
 

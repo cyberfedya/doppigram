@@ -1,9 +1,6 @@
 import { useState } from 'react';
-import { useQuery } from 'convex/react';
-import { api } from '../../convex/_generated/api';
 import { useApp } from '../context/AppContext';
 import { Plus } from 'lucide-react';
-import type { Id } from '../../convex/_generated/dataModel';
 import { StoryViewer } from './StoryViewer';
 import { StoryCreator } from './StoryCreator';
 import { VerifiedBadge } from './VerifiedBadge';
@@ -45,8 +42,10 @@ function StoryAvatar({ name, hasUnviewed, size = 52 }: { name: string; hasUnview
 
 export function StoryCircles() {
   const { auth } = useApp();
-  const currentUserId = auth.user?.id as Id<'users'> | undefined;
-  const storyGroups = useQuery(api.stories.getActiveStories, currentUserId ? { viewerId: currentUserId } : {}) as StoryGroup[] | undefined;
+  const currentUserId = auth.user?.id;
+
+  // TODO: replace with your backend query
+  const storyGroups: StoryGroup[] | undefined = undefined;
 
   const [viewingGroup, setViewingGroup] = useState<StoryGroup | null>(null);
   const [showCreator, setShowCreator] = useState(false);

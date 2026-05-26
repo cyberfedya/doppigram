@@ -1,10 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useQuery, useMutation } from 'convex/react';
 import { useApp } from '../context/AppContext';
 import { useTheme } from '../context/ThemeContext';
-import { api } from '../../convex/_generated/api';
-import type { Id } from '../../convex/_generated/dataModel';
 import type { MessageType } from '../types';
 import { playMessageSound, playSendSound } from '../utils/sounds';
 import { VerifiedBadge } from '../components/VerifiedBadge';
@@ -15,6 +12,9 @@ import {
   MessageSquare, Reply, CornerDownRight, Search, Pin,
 } from 'lucide-react';
 import { ReactionPicker, REACTION_ICONS } from '../components/ReactionPicker';
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const _noop = async (..._: unknown[]): Promise<any> => {};
 
 const STICKERS = [
   '😀','😂','😍','🥰','😎','🤔','😮','😢','😡','😴',
@@ -31,13 +31,13 @@ interface ReplyTo {
   messageType: string;
 }
 
-interface ConvexMessage {
+interface ChatMessage {
   _id: string; chatId: string; senderId: string; text: string;
   messageType?: MessageType; fileUrl?: string; replyToId?: string;
   replyTo?: ReplyTo | null; isPinned?: boolean; isRead: boolean; createdAt: number;
 }
 
-interface ConvexChat {
+interface ChatInfo {
   _id: string; name: string; avatar?: string; isGroup: boolean;
 }
 
@@ -47,26 +47,24 @@ export function ChatPage() {
   const { auth } = useApp();
   const { theme, toggleTheme, chatBackground } = useTheme();
 
-  const chatId = id as Id<'chats'> | undefined;
-  const currentUserId = auth.user?.id as Id<'users'> | undefined;
+  const chatId = id;
+  const currentUserId = auth.user?.id;
 
-  const messages = useQuery(api.users.getMessagesForChat, chatId ? { chatId, limit: 100 } : 'skip') as ConvexMessage[] | undefined;
-  const chatInfo = useQuery(api.users.getChatById, chatId ? { chatId } : 'skip') as ConvexChat | null | undefined;
-  const typingUsers = useQuery(api.users.getTypingUsers, chatId && currentUserId ? { chatId, currentUserId } : 'skip') as string[] | undefined;
-  const participantsStatus = useQuery(api.users.getChatParticipantsStatus, chatId && currentUserId ? { chatId, currentUserId } : 'skip') as Array<{ _id: string; username: string; displayName?: string; isOnline: boolean; lastSeen: number; isVerified: boolean }> | undefined;
+  // TODO: replace with your backend queries/mutations
+  const messages: ChatMessage[] | undefined = undefined;
+  const chatInfo: ChatInfo | null | undefined = undefined;
+  const typingUsers: string[] | undefined = undefined;
+  const participantsStatus: Array<{ _id: string; username: string; displayName?: string; isOnline: boolean; lastSeen: number; isVerified: boolean }> | undefined = undefined;
+  const reactions: Record<string, Array<{ reaction: string; userId: string; username: string }>> | undefined = undefined;
+  const pinnedMessages: ChatMessage[] | undefined = undefined;
 
-  const messageIds = (messages ?? []).map(m => m._id as Id<'messages'>);
-  const reactions = useQuery(api.reactions.getReactionsForMessages, messageIds.length > 0 ? { messageIds } : 'skip') as Record<string, Array<{ reaction: string; userId: string; username: string }>> | undefined;
-
-  const pinnedMessages = useQuery(api.users.getPinnedMessages, chatId ? { chatId } : 'skip') as ConvexMessage[] | undefined;
-
-  const sendMessageMut = useMutation(api.users.sendMessage);
-  const markAsReadMut = useMutation(api.users.markMessagesAsRead);
-  const setTypingMut = useMutation(api.users.setTyping);
-  const clearTypingMut = useMutation(api.users.clearTyping);
-  const generateUploadUrl = useMutation(api.files.generateUploadUrl);
-  const toggleReactionMut = useMutation(api.reactions.toggleReaction);
-  const togglePinMut = useMutation(api.users.togglePinMessage);
+  const sendMessageMut = _noop;
+  const markAsReadMut = _noop;
+  const setTypingMut = _noop;
+  const clearTypingMut = _noop;
+  const generateUploadUrl = _noop;
+  const toggleReactionMut = _noop;
+  const togglePinMut = _noop;
 
   const [messageText, setMessageText] = useState('');
   const [showStickers, setShowStickers] = useState(false);
@@ -78,7 +76,7 @@ export function ChatPage() {
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isUploading, setIsUploading] = useState(false);
-  const [replyingTo, setReplyingTo] = useState<ConvexMessage | null>(null);
+  const [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -130,7 +128,7 @@ export function ChatPage() {
   const handleSend = useCallback(async (text?: string, type: MessageType = 'text') => {
     const content = text ?? messageText.trim();
     if (!content || !chatId || !currentUserId) return;
-    const replyId = replyingTo?._id as Id<'messages'> | undefined;
+    const replyId = replyingTo?._id;
     setMessageText('');
     setReplyingTo(null);
     if (inputRef.current) inputRef.current.style.height = 'auto';
@@ -150,7 +148,7 @@ export function ChatPage() {
       const uploadUrl = await generateUploadUrl();
       const resp = await fetch(uploadUrl, { method: 'POST', headers: { 'Content-Type': file.type }, body: file });
       const { storageId } = await resp.json() as { storageId: string };
-      await sendMessageMut({ chatId, senderId: currentUserId, text: type === 'image' ? 'Photo' : 'Video', messageType: type, storageId: storageId as Id<'_storage'> });
+      await sendMessageMut({ chatId, senderId: currentUserId, text: type === 'image' ? 'Photo' : 'Video', messageType: type, storageId });
     } catch (err) { console.error('Upload error:', err); }
     finally { setIsUploading(false); }
   };
@@ -171,7 +169,7 @@ export function ChatPage() {
           const uploadUrl = await generateUploadUrl();
           const resp = await fetch(uploadUrl, { method: 'POST', headers: { 'Content-Type': blob.type }, body: blob });
           const { storageId } = await resp.json() as { storageId: string };
-          await sendMessageMut({ chatId, senderId: currentUserId, text: 'Video message', messageType: 'video_message', storageId: storageId as Id<'_storage'> });
+          await sendMessageMut({ chatId, senderId: currentUserId, text: 'Video message', messageType: 'video_message', storageId });
         } catch (err) { console.error('Video message upload error:', err); }
         finally { setIsUploading(false); }
       };
@@ -202,7 +200,7 @@ export function ChatPage() {
           const uploadUrl = await generateUploadUrl();
           const resp = await fetch(uploadUrl, { method: 'POST', headers: { 'Content-Type': blob.type }, body: blob });
           const { storageId } = await resp.json() as { storageId: string };
-          await sendMessageMut({ chatId, senderId: currentUserId, text: 'Voice message', messageType: 'voice', storageId: storageId as Id<'_storage'> });
+          await sendMessageMut({ chatId, senderId: currentUserId, text: 'Voice message', messageType: 'voice', storageId });
         } catch (err) { console.error('Voice upload error:', err); }
         finally { setIsUploading(false); }
       };
@@ -236,7 +234,7 @@ export function ChatPage() {
     </div>
   );
 
-  const renderMessageContent = (msg: ConvexMessage, isMe: boolean) => {
+  const renderMessageContent = (msg: ChatMessage, isMe: boolean) => {
     const type = msg.messageType ?? 'text';
     if (type === 'sticker') return <span className="text-5xl leading-none select-none">{msg.text}</span>;
     if (type === 'image' && msg.fileUrl) {
@@ -272,7 +270,7 @@ export function ChatPage() {
 
   const chatRaw = chatInfo ?? { name: 'Chat', avatar: undefined, isGroup: false };
   const otherUser = !chatRaw.isGroup && participantsStatus && participantsStatus.length > 0 ? participantsStatus[0] : null;
-  const chat = { ...chatRaw, name: otherUser ? ((otherUser as any).displayName || otherUser.username) : chatRaw.name, isVerified: otherUser?.isVerified ?? false };
+  const chat = { ...chatRaw, name: otherUser ? ((otherUser as { displayName?: string; username: string }).displayName || otherUser.username) : chatRaw.name, isVerified: otherUser?.isVerified ?? false };
   const typingNames = typingUsers ?? [];
 
   const fmtLastSeen = (ts: number): string => {
@@ -384,7 +382,7 @@ export function ChatPage() {
                     <div className={`flex ${isMe ? 'flex-row' : 'flex-row'} group/msg items-center`}>
                       {isMe && !isSticker && (
                         <div className="flex items-center gap-0.5 opacity-0 group-hover/msg:opacity-100 transition-opacity mr-1">
-                          <button onClick={() => { if (currentUserId) togglePinMut({ messageId: msg._id as Id<'messages'>, userId: currentUserId }); }}
+                          <button onClick={() => { if (currentUserId) togglePinMut({ messageId: msg._id, userId: currentUserId }); }}
                             className="p-1 rounded-full" style={{ color: msg.isPinned ? 'var(--accent)' : 'var(--tx-dim)' }} title={msg.isPinned ? 'Unpin' : 'Pin'}>
                             <Pin size={12} />
                           </button>
@@ -409,7 +407,7 @@ export function ChatPage() {
                             className="p-1 rounded-full" style={{ color: 'var(--tx-dim)' }} title="Reply">
                             <Reply size={14} />
                           </button>
-                          <button onClick={() => { if (currentUserId) togglePinMut({ messageId: msg._id as Id<'messages'>, userId: currentUserId }); }}
+                          <button onClick={() => { if (currentUserId) togglePinMut({ messageId: msg._id, userId: currentUserId }); }}
                             className="p-1 rounded-full" style={{ color: msg.isPinned ? 'var(--accent)' : 'var(--tx-dim)' }} title="Pin">
                             <Pin size={12} />
                           </button>
@@ -420,7 +418,7 @@ export function ChatPage() {
                     {reactionPickerMsgId === msg._id && (
                       <div className={`mt-1 ${isMe ? 'mr-2' : 'ml-2'}`}>
                         <ReactionPicker onSelect={(r) => {
-                          if (currentUserId) toggleReactionMut({ messageId: msg._id as Id<'messages'>, userId: currentUserId, reaction: r });
+                          if (currentUserId) toggleReactionMut({ messageId: msg._id, userId: currentUserId, reaction: r });
                           setReactionPickerMsgId(null);
                         }} />
                       </div>
@@ -432,7 +430,7 @@ export function ChatPage() {
                           reactions[msg._id].reduce<Record<string, number>>((acc, r) => { acc[r.reaction] = (acc[r.reaction] || 0) + 1; return acc; }, {})
                         ).map(([reaction, count]) => (
                           <button key={reaction}
-                            onClick={() => { if (currentUserId) toggleReactionMut({ messageId: msg._id as Id<'messages'>, userId: currentUserId, reaction }); }}
+                            onClick={() => { if (currentUserId) toggleReactionMut({ messageId: msg._id, userId: currentUserId, reaction }); }}
                             className="flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] transition-all"
                             style={{
                               backgroundColor: reactions[msg._id].some(r => r.reaction === reaction && r.userId === currentUserId) ? 'var(--bg-active)' : 'var(--bg-card)',

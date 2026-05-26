@@ -2,22 +2,22 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { useTheme } from '../context/ThemeContext';
-import { useQuery, useMutation } from 'convex/react';
-import { api } from '../../convex/_generated/api';
 import { VerifiedBadge } from '../components/VerifiedBadge';
 import {
   UserPlus, ArrowLeft, Users, Trash2, Shield, ShieldOff,
   Edit, X, Check, Search, Crown, LogOut, BadgeCheck,
   BadgeX, Ban, Unlock, Sun, Moon,
 } from 'lucide-react';
-import type { Id } from '../../convex/_generated/dataModel';
 
 interface UserData {
-  _id: Id<"users">; username: string; email: string; avatar?: string;
+  _id: string; username: string; email: string; avatar?: string;
   avatarType?: 'emoji' | 'image'; isAdmin: boolean; isOnline: boolean;
   isVerified?: boolean; isBanned?: boolean; banReason?: string;
   lastSeen: number; createdAt: number;
 }
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const _noop = async (..._: unknown[]): Promise<any> => { throw new Error('Backend not configured'); };
 
 export default function AdminPanel() {
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -31,14 +31,15 @@ export default function AdminPanel() {
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
 
-  const allUsers = useQuery(api.users.getAllUsers) as UserData[] | undefined;
-  const createUserMut = useMutation(api.users.createUser);
-  const deleteUserMut = useMutation(api.users.deleteUser);
-  const toggleAdminMut = useMutation(api.users.toggleUserAdmin);
-  const toggleVerifiedMut = useMutation(api.users.toggleUserVerified);
-  const banUserMut = useMutation(api.users.banUser);
-  const unbanUserMut = useMutation(api.users.unbanUser);
-  const updateUserMut = useMutation(api.users.updateUser);
+  // TODO: replace with your backend queries/mutations
+  const allUsers: UserData[] | undefined = undefined;
+  const createUserMut = _noop;
+  const deleteUserMut = _noop;
+  const toggleAdminMut = _noop;
+  const toggleVerifiedMut = _noop;
+  const banUserMut = _noop;
+  const unbanUserMut = _noop;
+  const updateUserMut = _noop;
 
   const filteredUsers = allUsers?.filter(user =>
     user.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -47,20 +48,20 @@ export default function AdminPanel() {
 
   const handleLogout = () => { logout(); navigate('/login'); };
 
-  const handleDeleteUser = async (userId: Id<"users">, username: string) => {
+  const handleDeleteUser = async (userId: string, username: string) => {
     if (!confirm(`Delete user "${username}"?`)) return;
     try { await deleteUserMut({ userId }); } catch (error) { alert('Error: ' + error); }
   };
 
-  const handleToggleAdmin = async (userId: Id<"users">) => {
+  const handleToggleAdmin = async (userId: string) => {
     try { await toggleAdminMut({ userId }); } catch (error) { alert('Error: ' + error); }
   };
 
-  const handleToggleVerified = async (userId: Id<"users">) => {
+  const handleToggleVerified = async (userId: string) => {
     try { await toggleVerifiedMut({ userId }); } catch (error) { alert('Error: ' + error); }
   };
 
-  const handleUnban = async (userId: Id<"users">) => {
+  const handleUnban = async (userId: string) => {
     try { await unbanUserMut({ userId }); } catch (error) { alert('Error: ' + error); }
   };
 

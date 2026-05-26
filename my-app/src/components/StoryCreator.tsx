@@ -1,11 +1,11 @@
 import { useState, useRef } from 'react';
-import { useMutation } from 'convex/react';
-import { api } from '../../convex/_generated/api';
-import type { Id } from '../../convex/_generated/dataModel';
 import { X, Image, Send, Type } from 'lucide-react';
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const _noop = async (..._: unknown[]): Promise<any> => { throw new Error('Backend not configured'); };
+
 export function StoryCreator({ userId, onClose }: {
-  userId: Id<'users'>;
+  userId: string;
   onClose: () => void;
 }) {
   const [mode, setMode] = useState<'text' | 'media'>('text');
@@ -15,8 +15,9 @@ export function StoryCreator({ userId, onClose }: {
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const createStoryMut = useMutation(api.stories.createStory);
-  const generateUploadUrl = useMutation(api.files.generateUploadUrl);
+  // TODO: replace with your backend mutations
+  const createStoryMut = _noop;
+  const generateUploadUrl = _noop;
 
   const handleFileSelect = (f: File) => {
     setFile(f);
@@ -36,7 +37,7 @@ export function StoryCreator({ userId, onClose }: {
         const resp = await fetch(uploadUrl, { method: 'POST', headers: { 'Content-Type': file.type }, body: file });
         const { storageId } = await resp.json() as { storageId: string };
         const mediaType = file.type.startsWith('video/') ? 'video' : 'image';
-        await createStoryMut({ userId, storageId: storageId as Id<'_storage'>, mediaType, text: text || undefined });
+        await createStoryMut({ userId, storageId, mediaType, text: text || undefined });
       } else if (text.trim()) {
         await createStoryMut({ userId, text: text.trim() });
       }
