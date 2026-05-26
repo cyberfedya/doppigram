@@ -32,9 +32,30 @@ export async function stopConnection(): Promise<void> {
   }
 }
 
+/** Wait until the connection is Connected (handles Connecting/Reconnecting states) */
+async function waitForConnected(timeoutMs = 8000): Promise<boolean> {
+  const conn = getConnection();
+  if (conn.state === signalR.HubConnectionState.Connected) return true;
+  if (conn.state === signalR.HubConnectionState.Disconnected) {
+    try { await conn.start(); return true; } catch { return false; }
+  }
+  // Connecting or Reconnecting — poll until Connected or timeout
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    await new Promise(r => setTimeout(r, 150));
+    const state = conn.state as signalR.HubConnectionState;
+    if (state === signalR.HubConnectionState.Connected) return true;
+    if (state === signalR.HubConnectionState.Disconnected) {
+      try { await conn.start(); return true; } catch { return false; }
+    }
+  }
+  return false;
+}
+
 export async function joinChat(chatId: string): Promise<void> {
-  await startConnection();
-  await getConnection().invoke('JoinChat', chatId);
+  if (await waitForConnected()) {
+    await getConnection().invoke('JoinChat', chatId);
+  }
 }
 
 export async function leaveChat(chatId: string): Promise<void> {
@@ -44,8 +65,9 @@ export async function leaveChat(chatId: string): Promise<void> {
 }
 
 export async function joinUserGroup(userId: string): Promise<void> {
-  await startConnection();
-  await getConnection().invoke('JoinUserGroup', userId);
+  if (await waitForConnected()) {
+    await getConnection().invoke('JoinUserGroup', userId);
+  }
 }
 
 export async function sendTyping(chatId: string, userId: string, username: string): Promise<void> {
