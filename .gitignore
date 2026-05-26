@@ -4,3 +4,6 @@ backend/doppigram.db-wal
 backend/Uploads/
 backend/bin/
 backend/obj/
+
+# Local Netlify folder
+.netlify
