@@ -2,13 +2,11 @@ import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { useTheme } from '../context/ThemeContext';
+import { users as usersApi, files as filesApi } from '../services/api';
 import {
   ArrowLeft, Sun, Moon, Check, Palette, Image, User,
   Upload, Trash2, Monitor, Copy, AtSign,
 } from 'lucide-react';
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const _noop = async (..._: unknown[]): Promise<any> => { throw new Error('Backend not configured'); };
 
 const ACCENT_COLORS = [
   { color: '#ffffff', label: 'Default' },
@@ -46,12 +44,6 @@ export default function SettingsPage() {
   const [nameSaved, setNameSaved] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  // TODO: replace with your backend mutations
-  const generateUploadUrl = _noop;
-  const updateUserMut = _noop;
-  const updateStatusMut = _noop;
-  const updateDisplayNameMut = _noop;
-  const updateUsernameMut = _noop;
 
   const handleCustomHex = () => {
     const hex = customHex.trim();
@@ -63,11 +55,8 @@ export default function SettingsPage() {
 
   const handleBgUpload = async (file: File) => {
     try {
-      const uploadUrl = await generateUploadUrl();
-      const resp = await fetch(uploadUrl, { method: 'POST', headers: { 'Content-Type': file.type }, body: file });
-      const { storageId } = await resp.json() as { storageId: string };
-      const url = `${window.location.origin}/api/storage/${storageId}`;
-      setChatBackground(`url(${url})`);
+      const { fileUrl } = await filesApi.upload(file);
+      setChatBackground(`url(${fileUrl})`);
     } catch {
       // Fallback: use local data URL
       const reader = new FileReader();
@@ -83,10 +72,13 @@ export default function SettingsPage() {
   const handleAvatarUpload = async (file: File) => {
     if (!auth.user?.id) return;
     try {
-      const uploadUrl = await generateUploadUrl();
-      const resp = await fetch(uploadUrl, { method: 'POST', headers: { 'Content-Type': file.type }, body: file });
-      const { storageId } = await resp.json() as { storageId: string };
-      await updateUserMut({ userId: auth.user.id, username: auth.user.username, avatar: storageId, avatarType: 'image' });
+      const { storageId, fileUrl } = await filesApi.upload(file);
+      await usersApi.update(auth.user.id, { username: auth.user.username, avatar: fileUrl, avatarType: 'image' });
+      const session = JSON.parse(localStorage.getItem('doppigram_session') || '{}');
+      session.avatar = fileUrl;
+      session.avatarType = 'image';
+      session.storageId = storageId;
+      localStorage.setItem('doppigram_session', JSON.stringify(session));
     } catch (err) {
       console.error('Avatar upload error:', err);
     }
@@ -97,7 +89,7 @@ export default function SettingsPage() {
   const handleSaveDisplayName = async () => {
     if (!auth.user?.id || !newDisplayName.trim()) return;
     try {
-      await updateDisplayNameMut({ userId: auth.user.id, displayName: newDisplayName.trim() });
+      await usersApi.updateDisplayName(auth.user.id, newDisplayName.trim());
       const session = JSON.parse(localStorage.getItem('doppigram_session') || '{}');
       session.displayName = newDisplayName.trim();
       localStorage.setItem('doppigram_session', JSON.stringify(session));
@@ -116,7 +108,7 @@ export default function SettingsPage() {
       return;
     }
     try {
-      await updateUsernameMut({ userId: auth.user.id, newUsername: un });
+      await usersApi.updateUsername(auth.user.id, un);
       const session = JSON.parse(localStorage.getItem('doppigram_session') || '{}');
       session.username = un;
       localStorage.setItem('doppigram_session', JSON.stringify(session));
@@ -377,7 +369,7 @@ export default function SettingsPage() {
                           placeholder="What's on your mind?" maxLength={100}
                           className="flex-1 px-3 py-2 rounded-lg text-[13px] themed-border themed-border-focus"
                           style={{ backgroundColor: 'var(--bg-input)', color: 'var(--tx-primary)' }} />
-                        <button onClick={() => { if (auth.user?.id) updateStatusMut({ userId: auth.user.id, statusText }).catch(console.error); }}
+                        <button onClick={() => { if (auth.user?.id) usersApi.updateStatus(auth.user.id, statusText).catch(console.error); }}
                           className="px-3 py-2 rounded-lg text-[13px] font-semibold transition-colors"
                           style={{ backgroundColor: 'var(--accent)', color: 'var(--msg-me-text)' }}>
                           Save

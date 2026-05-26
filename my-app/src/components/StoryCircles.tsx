@@ -1,27 +1,14 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { Plus } from 'lucide-react';
 import { StoryViewer } from './StoryViewer';
 import { StoryCreator } from './StoryCreator';
 import { VerifiedBadge } from './VerifiedBadge';
+import { stories as storiesApi, type ApiStoryGroup } from '../services/api';
 
-interface StoryGroup {
-  userId: string;
-  username: string;
-  displayName?: string;
-  avatar?: string;
-  isVerified: boolean;
-  allViewed: boolean;
-  stories: Array<{
-    _id: string;
-    mediaUrl?: string;
-    mediaType?: 'image' | 'video';
-    text?: string;
-    createdAt: number;
-    expiresAt: number;
-  }>;
-  latestAt: number;
-}
+type StoryGroup = Omit<ApiStoryGroup, 'stories'> & {
+  stories: Array<{ _id: string; mediaUrl?: string; mediaType?: 'image' | 'video'; text?: string; createdAt: number; expiresAt: number }>;
+};
 
 function StoryAvatar({ name, hasUnviewed, size = 52 }: { name: string; hasUnviewed: boolean; size?: number }) {
   const initials = name.slice(0, 2).toUpperCase();
@@ -43,12 +30,21 @@ function StoryAvatar({ name, hasUnviewed, size = 52 }: { name: string; hasUnview
 export function StoryCircles() {
   const { auth } = useApp();
   const currentUserId = auth.user?.id;
-
-  // TODO: replace with your backend query
-  const storyGroups: StoryGroup[] | undefined = undefined;
-
+  const [storyGroups, setStoryGroups] = useState<StoryGroup[] | undefined>(undefined);
   const [viewingGroup, setViewingGroup] = useState<StoryGroup | null>(null);
   const [showCreator, setShowCreator] = useState(false);
+
+  const loadStories = () => {
+    if (!currentUserId) return;
+    storiesApi.getActive(currentUserId).then(groups =>
+      setStoryGroups(groups.map(g => ({
+        ...g,
+        stories: g.stories.map(s => ({ ...s, _id: s.id, mediaType: s.mediaType as 'image' | 'video' | undefined }))
+      })))
+    ).catch(() => setStoryGroups([]));
+  };
+
+  useEffect(() => { loadStories(); }, [currentUserId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!currentUserId) return null;
 

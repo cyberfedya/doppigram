@@ -19,10 +19,13 @@ export default function InitAdmin() {
     if (password.length < 6) { setMessage({ type: 'error', text: 'Password must be at least 6 characters' }); return; }
     setIsLoading(true);
     try {
-      // TODO: implement with your backend
-      throw new Error('Backend not configured');
-    } catch (error) {
-      setMessage({ type: 'error', text: 'Error: ' + error });
+      const { auth: authApi } = await import('../services/api');
+      await authApi.initAdmin(username.trim(), password.trim());
+      setMessage({ type: 'success', text: 'Admin created! Redirecting…' });
+      setTimeout(() => navigate('/login'), 1500);
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : String(error);
+      setMessage({ type: 'error', text: msg === 'Admin already exists' ? 'Admin already exists, go to /login' : 'Error: ' + msg });
     }
     setIsLoading(false);
   };

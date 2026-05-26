@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { useTheme } from '../context/ThemeContext';
 import { VerifiedBadge } from '../components/VerifiedBadge';
+import { users as usersApi, auth as authApi } from '../services/api';
 import {
   UserPlus, ArrowLeft, Users, Trash2, Shield, ShieldOff,
   Edit, X, Check, Search, Crown, LogOut, BadgeCheck,
@@ -16,9 +17,6 @@ interface UserData {
   lastSeen: number; createdAt: number;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const _noop = async (..._: unknown[]): Promise<any> => { throw new Error('Backend not configured'); };
-
 export default function AdminPanel() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -26,20 +24,26 @@ export default function AdminPanel() {
   const [editingUser, setEditingUser] = useState<UserData | null>(null);
   const [banningUser, setBanningUser] = useState<UserData | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [allUsers, setAllUsers] = useState<UserData[] | undefined>(undefined);
 
   const { logout } = useApp();
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
 
-  // TODO: replace with your backend queries/mutations
-  const allUsers: UserData[] | undefined = undefined;
-  const createUserMut = _noop;
-  const deleteUserMut = _noop;
-  const toggleAdminMut = _noop;
-  const toggleVerifiedMut = _noop;
-  const banUserMut = _noop;
-  const unbanUserMut = _noop;
-  const updateUserMut = _noop;
+  const loadUsers = useCallback(async () => {
+    try {
+      const list = await usersApi.getAll();
+      setAllUsers(list.map(u => ({
+        _id: u.id, username: u.username, email: u.email,
+        avatar: u.avatar, avatarType: u.avatarType as 'emoji' | 'image' | undefined,
+        isAdmin: u.isAdmin, isOnline: u.isOnline,
+        isVerified: u.isVerified, isBanned: u.isBanned, banReason: u.banReason,
+        lastSeen: u.lastSeen, createdAt: u.createdAt,
+      })));
+    } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => { loadUsers(); }, [loadUsers]);
 
   const filteredUsers = allUsers?.filter(user =>
     user.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -50,19 +54,19 @@ export default function AdminPanel() {
 
   const handleDeleteUser = async (userId: string, username: string) => {
     if (!confirm(`Delete user "${username}"?`)) return;
-    try { await deleteUserMut({ userId }); } catch (error) { alert('Error: ' + error); }
+    try { await usersApi.delete(userId); await loadUsers(); } catch (error) { alert('Error: ' + error); }
   };
 
   const handleToggleAdmin = async (userId: string) => {
-    try { await toggleAdminMut({ userId }); } catch (error) { alert('Error: ' + error); }
+    try { await usersApi.toggleAdmin(userId); await loadUsers(); } catch (error) { alert('Error: ' + error); }
   };
 
   const handleToggleVerified = async (userId: string) => {
-    try { await toggleVerifiedMut({ userId }); } catch (error) { alert('Error: ' + error); }
+    try { await usersApi.toggleVerified(userId); await loadUsers(); } catch (error) { alert('Error: ' + error); }
   };
 
   const handleUnban = async (userId: string) => {
-    try { await unbanUserMut({ userId }); } catch (error) { alert('Error: ' + error); }
+    try { await usersApi.unban(userId); await loadUsers(); } catch (error) { alert('Error: ' + error); }
   };
 
   return (
@@ -246,7 +250,8 @@ export default function AdminPanel() {
       {showCreateModal && (
         <CreateUserModal onClose={() => setShowCreateModal(false)} onCreate={async (username, password) => {
           try {
-            await createUserMut({ uid: 'user_' + Date.now() + '_' + username, username, displayName: username, email: `${username}@doppigram.app`, password, isAdmin: false });
+            await authApi.register(username, password, username);
+            await loadUsers();
             setShowCreateModal(false);
           } catch (error) { alert('Error: ' + error); }
         }} />
@@ -256,7 +261,8 @@ export default function AdminPanel() {
         <EditUserModal user={editingUser} onClose={() => { setShowEditModal(false); setEditingUser(null); }}
           onSave={async (username, password) => {
             try {
-              await updateUserMut({ userId: editingUser._id, username, ...(password ? { password } : {}) });
+              await usersApi.update(editingUser._id, { username, ...(password ? { password } : {}) });
+              await loadUsers();
               setShowEditModal(false); setEditingUser(null);
             } catch (error) { alert('Error: ' + error); }
           }} />
@@ -266,7 +272,8 @@ export default function AdminPanel() {
         <BanUserModal user={banningUser} onClose={() => { setShowBanModal(false); setBanningUser(null); }}
           onBan={async (reason) => {
             try {
-              await banUserMut({ userId: banningUser._id, reason });
+              await usersApi.ban(banningUser._id, reason);
+              await loadUsers();
               setShowBanModal(false); setBanningUser(null);
             } catch (error) { alert('Error: ' + error); }
           }} />

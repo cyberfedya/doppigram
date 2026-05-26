@@ -1,9 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { X, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
 import { VerifiedBadge } from './VerifiedBadge';
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const _noop = async (..._: unknown[]): Promise<any> => {};
+import { stories as storiesApi } from '../services/api';
 
 interface Story {
   _id: string;
@@ -32,10 +30,6 @@ export function StoryViewer({ group, currentUserId, onClose }: {
   const [progress, setProgress] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval>>(undefined);
 
-  // TODO: replace with your backend mutations
-  const viewStoryMut = _noop;
-  const deleteStoryMut = _noop;
-
   const story = group.stories[currentIndex];
   const isOwn = group.userId === currentUserId;
   const DURATION = story?.mediaType === 'video' ? 15000 : 5000;
@@ -43,9 +37,9 @@ export function StoryViewer({ group, currentUserId, onClose }: {
   useEffect(() => {
     if (!story) return;
     if (group.userId !== currentUserId) {
-      viewStoryMut({ storyId: story._id, viewerId: currentUserId }).catch(() => {});
+      storiesApi.view(story._id, currentUserId).catch(() => {});
     }
-  }, [story, currentUserId, group.userId, viewStoryMut]);
+  }, [story, currentUserId, group.userId]);
 
   useEffect(() => {
     setProgress(0);
@@ -81,7 +75,7 @@ export function StoryViewer({ group, currentUserId, onClose }: {
   const handleDelete = async () => {
     if (!story) return;
     clearInterval(timerRef.current);
-    await deleteStoryMut({ storyId: story._id });
+    await storiesApi.delete(story._id);
     if (group.stories.length <= 1) {
       onClose();
     } else if (currentIndex >= group.stories.length - 1) {

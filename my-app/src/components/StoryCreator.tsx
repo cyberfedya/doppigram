@@ -1,8 +1,6 @@
 import { useState, useRef } from 'react';
 import { X, Image, Send, Type } from 'lucide-react';
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const _noop = async (..._: unknown[]): Promise<any> => { throw new Error('Backend not configured'); };
+import { stories as storiesApi, files as filesApi } from '../services/api';
 
 export function StoryCreator({ userId, onClose }: {
   userId: string;
@@ -14,10 +12,6 @@ export function StoryCreator({ userId, onClose }: {
   const [file, setFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // TODO: replace with your backend mutations
-  const createStoryMut = _noop;
-  const generateUploadUrl = _noop;
 
   const handleFileSelect = (f: File) => {
     setFile(f);
@@ -33,13 +27,11 @@ export function StoryCreator({ userId, onClose }: {
 
     try {
       if (file) {
-        const uploadUrl = await generateUploadUrl();
-        const resp = await fetch(uploadUrl, { method: 'POST', headers: { 'Content-Type': file.type }, body: file });
-        const { storageId } = await resp.json() as { storageId: string };
+        const { storageId } = await filesApi.upload(file);
         const mediaType = file.type.startsWith('video/') ? 'video' : 'image';
-        await createStoryMut({ userId, storageId, mediaType, text: text || undefined });
+        await storiesApi.create(userId, storageId, mediaType, text || undefined);
       } else if (text.trim()) {
-        await createStoryMut({ userId, text: text.trim() });
+        await storiesApi.create(userId, undefined, undefined, text.trim());
       }
       onClose();
     } catch (err) {

@@ -7,6 +7,8 @@ import { playMessageSound, playSendSound } from '../utils/sounds';
 import { VerifiedBadge } from '../components/VerifiedBadge';
 import { TypingIndicator } from '../components/TypingIndicator';
 import { StoryCircles } from '../components/StoryCircles';
+import { chats as chatsApi, users as usersApi, files as filesApi, type ApiMessage, type ApiChat, type ApiParticipant } from '../services/api';
+import { joinChat, leaveChat, sendTyping, clearTyping, on } from '../services/signalr';
 import {
   Search, MessageCircle, LogOut, Users, User,
   UsersRound, Send, CheckCheck, X, Plus, Shield,
@@ -14,9 +16,6 @@ import {
   Mic, StopCircle, Paperclip, Image, Video,
   Pencil, Phone, Bookmark, UserCheck, Camera, Film,
 } from 'lucide-react';
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const _noop = async (..._: unknown[]): Promise<any> => {};
 
 /* -- Modal Overlay ------------------------------------------------ */
 function ModalOverlay({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
@@ -78,11 +77,20 @@ function CreateGroupModal({ onClose, onCreate }: {
   const [members, setMembers] = useState<Array<{ _id: string; username: string; displayName?: string }>>([]);
   const [lookupError, setLookupError] = useState('');
   const [creating, setCreating] = useState(false);
+  const [lookupResult, setLookupResult] = useState<{ _id: string; username: string; displayName?: string; isOnline: boolean; isVerified: boolean } | null | undefined>(undefined);
   const nameRef = useRef<HTMLInputElement>(null);
   useEffect(() => { nameRef.current?.focus(); }, []);
 
-  // TODO: replace with your backend user lookup
-  const lookupResult: { _id: string; username: string; displayName?: string; isOnline: boolean; isVerified: boolean } | null | undefined = undefined;
+  useEffect(() => {
+    if (!doppId.trim() || doppId.trim().length < 3) { setLookupResult(undefined); return; }
+    const t = setTimeout(async () => {
+      try {
+        const u = await usersApi.lookup(doppId.trim());
+        setLookupResult(u ? { _id: u.id, username: u.username, displayName: u.displayName, isOnline: u.isOnline, isVerified: u.isVerified } : null);
+      } catch { setLookupResult(null); }
+    }, 400);
+    return () => clearTimeout(t);
+  }, [doppId]);
 
   const addMember = () => {
     if (!lookupResult) { setLookupError('User not found'); return; }
@@ -160,9 +168,18 @@ function NewChatModal({ onClose, onCreate }: {
   const [doppId, setDoppId] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [lookupResult, setLookupResult] = useState<{ _id: string; username: string; displayName?: string; avatar?: string; isOnline: boolean; isVerified: boolean; statusText?: string } | null | undefined>(undefined);
 
-  // TODO: replace with your backend user lookup
-  const lookupResult: { _id: string; username: string; displayName?: string; avatar?: string; isOnline: boolean; isVerified: boolean; statusText?: string } | null | undefined = undefined;
+  useEffect(() => {
+    if (!doppId.trim() || doppId.trim().length < 3) { setLookupResult(undefined); return; }
+    const t = setTimeout(async () => {
+      try {
+        const u = await usersApi.lookup(doppId.trim());
+        setLookupResult(u ? { _id: u.id, username: u.username, displayName: u.displayName, avatar: u.avatar, isOnline: u.isOnline, isVerified: u.isVerified, statusText: u.statusText } : null);
+      } catch { setLookupResult(null); }
+    }, 400);
+    return () => clearTimeout(t);
+  }, [doppId]);
 
   const handleStart = async () => {
     if (!lookupResult) { setError('User not found'); return; }
@@ -236,14 +253,10 @@ function NavItem({ icon, label, onClick, badge, danger }: {
 
 /* -- Main Page ---------------------------------------------------- */
 
-interface ChatWithPreview {
-  _id: string; name: string; avatar?: string; isGroup: boolean; isVerified?: boolean; createdAt: number;
-  lastMessage: string | null; lastMessageType: string | null; lastMessageTime: number | null; unreadCount: number;
-}
-
-interface ChatMsg {
-  _id: string; senderId: string; text: string; messageType?: MessageType; fileUrl?: string; isRead: boolean; createdAt: number;
-}
+type ChatWithPreview = Omit<ApiChat, 'id' | 'lastMessage' | 'lastMessageType' | 'lastMessageTime'> & {
+  _id: string; lastMessage: string | null; lastMessageType: string | null; lastMessageTime: number | null;
+};
+type ChatMsg = Omit<ApiMessage, 'id' | 'messageType'> & { _id: string; messageType?: MessageType; };
 
 /* -- Contacts Modal ---------------------------------------------- */
 function ContactsModal({ onClose, chats, onSelectChat, onAddNew }: {
@@ -304,20 +317,61 @@ export function ChatListPage() {
   const navigate = useNavigate();
   const currentUserId = auth.user?.id;
 
-  // TODO: replace with your backend queries/mutations
-  const convexChats: ChatWithPreview[] | undefined = undefined;
-  const chatMessages: ChatMsg[] | undefined = undefined;
-  const typingUsers: string[] | undefined = undefined;
-  const participantsStatus: Array<{ _id: string; username: string; displayName?: string; isOnline: boolean; lastSeen: number; isVerified: boolean }> | undefined = undefined;
+  const [convexChats, setConvexChats] = useState<ChatWithPreview[] | undefined>(undefined);
+  const [chatMessages, setChatMessages] = useState<ChatMsg[] | undefined>(undefined);
+  const [typingUsers, setTypingUsers] = useState<string[]>([]);
+  const [participantsStatus, setParticipantsStatus] = useState<ApiParticipant[] | undefined>(undefined);
 
-  const sendMessageMut = _noop;
-  const markAsReadMut = _noop;
-  const setTypingMut = _noop;
-  const clearTypingMut = _noop;
-  const generateUploadUrl = _noop;
+  // Load chats
+  const loadChats = useCallback(async () => {
+    if (!currentUserId) return;
+    try {
+      const list = await chatsApi.getAll(currentUserId);
+      setConvexChats(list.map(c => ({ ...c, _id: c.id, lastMessage: c.lastMessage ?? null, lastMessageType: c.lastMessageType ?? null, lastMessageTime: c.lastMessageTime ?? null })));
+    } catch { /* ignore */ }
+  }, [currentUserId]);
+
+  useEffect(() => { loadChats(); }, [loadChats]);
+
+  // Load messages when active chat changes
+  const loadMessages = useCallback(async (chatId: string) => {
+    setChatMessages(undefined);
+    try {
+      const msgs = await chatsApi.getMessages(chatId);
+      setChatMessages(msgs.map(m => ({ ...m, _id: m.id, messageType: m.messageType as MessageType | undefined })));
+    } catch { setChatMessages([]); }
+  }, []);
+
+  // Load participants when active chat changes
+  const loadParticipants = useCallback(async (chatId: string) => {
+    if (!currentUserId) return;
+    try {
+      const p = await chatsApi.getParticipants(chatId, currentUserId);
+      setParticipantsStatus(p);
+    } catch { /* ignore */ }
+  }, [currentUserId]);
+
+  const sendMessageMut = useCallback(async (args: { chatId: string; senderId: string; text: string; messageType?: string; storageId?: string }) => {
+    const msg = await chatsApi.sendMessage(args.chatId, args.senderId, args.text, args.messageType, args.storageId);
+    setChatMessages(prev => prev ? [...prev, { ...msg, _id: msg.id, messageType: msg.messageType as MessageType | undefined }] : undefined);
+    await loadChats();
+  }, [loadChats]);
+
+  const markAsReadMut = useCallback(async (args: { chatId: string; userId: string }) => {
+    await chatsApi.markRead(args.chatId, args.userId);
+  }, []);
+
+  const setTypingMut = useCallback(async (args: { chatId: string; userId: string; username: string }) => {
+    await sendTyping(args.chatId, args.userId, args.username);
+  }, []);
+
+  const clearTypingMut = useCallback(async (args: { chatId: string; userId: string }) => {
+    await clearTyping(args.chatId, args.userId);
+  }, []);
+
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeChatId, setActiveChatId] = useState<string | null>(null);
+  const [activeChatId, setActiveChatIdRaw] = useState<string | null>(null);
   const [messageText, setMessageText] = useState('');
   const [showProfile, setShowProfile] = useState(false);
   const [showCreateGroup, setShowCreateGroup] = useState(false);
@@ -336,6 +390,54 @@ export function ChatListPage() {
   const recordingTimerRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const prevMsgCountRef = useRef<number>(0);
+  const prevChatIdRef = useRef<string | null>(null);
+
+  // Switch active chat: leave old, join new, load messages + participants
+  const setActiveChatId = useCallback(async (id: string | null) => {
+    if (prevChatIdRef.current) { leaveChat(prevChatIdRef.current).catch(() => {}); }
+    setActiveChatIdRaw(id);
+    prevChatIdRef.current = id;
+    setTypingUsers([]);
+    if (id) {
+      await joinChat(id);
+      loadMessages(id);
+      loadParticipants(id);
+    }
+  }, [loadMessages, loadParticipants]);
+
+  // SignalR: listen for new messages
+  useEffect(() => {
+    const off = on('NewMessage', (msg: unknown) => {
+      const m = msg as ApiMessage;
+      if (m.chatId === prevChatIdRef.current) {
+        setChatMessages(prev => prev ? [...prev, { ...m, _id: m.id, messageType: m.messageType as MessageType | undefined }] : undefined);
+      }
+      loadChats();
+    });
+    return off;
+  }, [loadChats]);
+
+  // SignalR: typing
+  useEffect(() => {
+    const offStart = on('TypingStart', (ev: unknown) => {
+      const e = ev as { chatId: string; userId: string; username: string };
+      if (e.chatId === prevChatIdRef.current && e.userId !== currentUserId)
+        setTypingUsers(prev => prev.includes(e.username) ? prev : [...prev, e.username]);
+    });
+    const offStop = on('TypingStop', (ev: unknown) => {
+      const e = ev as { chatId: string; userId: string; username: string };
+      if (e.chatId === prevChatIdRef.current)
+        setTypingUsers(prev => prev.filter(n => n !== e.username));
+    });
+    return () => { offStart(); offStop(); };
+  }, [currentUserId]);
+
+  // SignalR: pin / reaction updates
+  useEffect(() => {
+    const offPin = on('MessagePinned', () => { if (prevChatIdRef.current) loadMessages(prevChatIdRef.current); });
+    const offReaction = on('ReactionUpdated', () => { if (prevChatIdRef.current) loadMessages(prevChatIdRef.current); });
+    return () => { offPin(); offReaction(); };
+  }, [loadMessages]);
 
   useEffect(() => {
     if (activeChatId && currentUserId) markAsReadMut({ chatId: activeChatId, userId: currentUserId }).catch(() => {});
@@ -388,9 +490,7 @@ export function ChatListPage() {
     if (!activeChatId || !currentUserId) return;
     setIsUploading(true); setShowAttach(false);
     try {
-      const uploadUrl = await generateUploadUrl();
-      const resp = await fetch(uploadUrl, { method: 'POST', headers: { 'Content-Type': file.type }, body: file });
-      const { storageId } = await resp.json() as { storageId: string };
+      const { storageId } = await filesApi.upload(file);
       await sendMessageMut({ chatId: activeChatId, senderId: currentUserId, text: type === 'image' ? 'Photo' : 'Video', messageType: type, storageId });
     } catch (err) { console.error('Upload error:', err); }
     finally { setIsUploading(false); }
@@ -410,9 +510,8 @@ export function ChatListPage() {
         setIsVoiceRecording(false); setRecordingTime(0); setIsUploading(true);
         try {
           const blob = new Blob(chunks, { type: chunks[0]?.type ?? mimeType });
-          const uploadUrl = await generateUploadUrl();
-          const resp = await fetch(uploadUrl, { method: 'POST', headers: { 'Content-Type': blob.type }, body: blob });
-          const { storageId } = await resp.json() as { storageId: string };
+          const voiceFile = new File([blob], 'voice.' + (blob.type.includes('webm') ? 'webm' : 'mp4'), { type: blob.type });
+          const { storageId } = await filesApi.upload(voiceFile);
           await sendMessageMut({ chatId: activeChatId, senderId: currentUserId, text: 'Voice message', messageType: 'voice', storageId });
         } catch (err) { console.error('Voice upload error:', err); }
         finally { setIsUploading(false); }
@@ -466,7 +565,7 @@ export function ChatListPage() {
   const filteredChats = (convexChats ?? []).filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase()));
   const activeChatRaw = (convexChats ?? []).find(c => c._id === activeChatId);
   const otherUser = activeChatRaw && !activeChatRaw.isGroup && participantsStatus && participantsStatus.length > 0 ? participantsStatus[0] : null;
-  const activeChat = activeChatRaw ? { ...activeChatRaw, name: otherUser ? ((otherUser as { displayName?: string; username: string }).displayName || otherUser.username) : activeChatRaw.name, isVerified: otherUser ? otherUser.isVerified : false } : undefined;
+  const activeChat = activeChatRaw ? { ...activeChatRaw, name: otherUser ? (otherUser.displayName || otherUser.username) : activeChatRaw.name, isVerified: otherUser ? otherUser.isVerified : false } : undefined;
   const initials = (auth.user?.displayName || auth.user?.username || 'U').slice(0, 2).toUpperCase();
   const typingNames = typingUsers ?? [];
 
@@ -490,7 +589,7 @@ export function ChatListPage() {
     }
     const other = participantsStatus[0];
     if (!other) return { text: '', isOnline: false };
-    return other.isOnline ? { text: 'online', isOnline: true } : { text: fmtLastSeen(other.lastSeen), isOnline: false };
+    return other.isOnline ? { text: 'online', isOnline: true } : { text: fmtLastSeen(other.lastSeen ?? 0), isOnline: false };
   };
 
   const onlineStatus = getOnlineStatus();
