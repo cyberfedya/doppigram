@@ -422,6 +422,19 @@ export function ChatListPage() {
     return off;
   }, [loadChats]);
 
+  // SignalR: read receipts — update isRead on sender's messages
+  useEffect(() => {
+    const off = on('MessagesRead', (ev: unknown) => {
+      const e = ev as { chatId: string; readerId: string };
+      if (e.chatId === prevChatIdRef.current) {
+        setChatMessages(prev =>
+          prev ? prev.map(m => m.senderId === currentUserId ? { ...m, isRead: true } : m) : prev
+        );
+      }
+    });
+    return off;
+  }, [currentUserId]);
+
   // SignalR: typing
   useEffect(() => {
     const offStart = on('TypingStart', (ev: unknown) => {

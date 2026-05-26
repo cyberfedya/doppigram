@@ -169,7 +169,7 @@ public class ChatsController(AppDbContext db, IHubContext<ChatHub> hub) : Contro
         db.Messages.Add(msg);
 
         // Mark all previous messages from others as read for the sender
-        await db.Messages
+        var markedCount = await db.Messages
             .Where(m => m.ChatId == id && m.SenderId != req.SenderId && !m.IsRead)
             .ExecuteUpdateAsync(s => s.SetProperty(m => m.IsRead, true));
 
@@ -185,6 +185,10 @@ public class ChatsController(AppDbContext db, IHubContext<ChatHub> hub) : Contro
         // Broadcast via SignalR
         await hub.Clients.Group($"chat_{id}").SendAsync("NewMessage", dto);
 
+        // Notify senders that their messages were read
+        if (markedCount > 0)
+            await hub.Clients.Group($"chat_{id}").SendAsync("MessagesRead", new { chatId = id, readerId = req.SenderId });
+
         return Ok(dto);
     }
 
@@ -192,9 +196,14 @@ public class ChatsController(AppDbContext db, IHubContext<ChatHub> hub) : Contro
     [HttpPut("{id}/messages/read")]
     public async Task<IActionResult> MarkRead(string id, [FromBody] MarkReadRequest req)
     {
-        await db.Messages
+        var markedCount = await db.Messages
             .Where(m => m.ChatId == id && m.SenderId != req.UserId && !m.IsRead)
             .ExecuteUpdateAsync(s => s.SetProperty(m => m.IsRead, true));
+
+        // Notify chat group so senders see double-check in real time
+        if (markedCount > 0)
+            await hub.Clients.Group($"chat_{id}").SendAsync("MessagesRead", new { chatId = id, readerId = req.UserId });
+
         return Ok();
     }
 
