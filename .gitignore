@@ -2,3 +2,5 @@ backend/doppigram.db
 backend/doppigram.db-shm
 backend/doppigram.db-wal
 backend/Uploads/
+backend/bin/
+backend/obj/
